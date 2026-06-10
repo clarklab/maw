@@ -1,0 +1,328 @@
+/* MAW — UI chrome. The 3D scene does the heavy lifting; this stays out of its way. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #f3ece1;
+}
+
+#app { position: fixed; inset: 0; }
+
+#scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- atmosphere overlays ---------- */
+
+#vignette {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(10, 0, 0, 0.55) 100%);
+  mix-blend-mode: multiply;
+}
+
+#redflash {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(160, 10, 5, 0.0) 40%, rgba(120, 0, 0, 0.85) 100%);
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+}
+#redflash.flash { opacity: 1; transition: opacity 0.05s; }
+
+/* ---------- HUD ---------- */
+
+#hud {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+#story-ribbon {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 700px);
+  text-align: center;
+  font-size: clamp(14px, 2.4vh, 19px);
+  font-style: italic;
+  line-height: 1.5;
+  color: #efe6d4;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 22px rgba(0,0,0,0.7);
+  max-height: 4.6em;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-end;
+  column-gap: 0.35em;
+}
+#story-text .w {
+  opacity: 0;
+  animation: wordIn 0.55s ease-out forwards;
+  display: inline-block;
+  margin-right: 0.32em;
+}
+@keyframes wordIn {
+  from { opacity: 0; transform: translateY(8px) scale(1.25); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+#story-caret {
+  display: inline-block;
+  width: 2px; height: 1.1em;
+  background: rgba(243, 230, 200, 0.7);
+  animation: blink 1.1s steps(1) infinite;
+  align-self: flex-end;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+#hud-row {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#score {
+  font-size: clamp(18px, 3vh, 26px);
+  letter-spacing: 0.08em;
+  color: #f7efdd;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.95);
+  font-variant-numeric: tabular-nums;
+}
+
+#manners {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 240px); /* repositioned via left in media; fallback */
+}
+#manners { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; right: auto; display: flex; gap: 7px; }
+.manner-pip {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff7ec, #cfae84 70%);
+  box-shadow: 0 0 8px rgba(255, 240, 210, 0.5), 0 1px 3px rgba(0,0,0,0.8);
+  transition: all 0.4s;
+}
+.manner-pip.lost {
+  background: #3a0d0d;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.9);
+  transform: scale(0.8);
+}
+
+#hint {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 100%;
+  text-align: center;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: rgba(240, 228, 205, 0.55);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  transition: opacity 1s;
+}
+#hint.faded { opacity: 0; }
+
+#breath-meter {
+  position: absolute;
+  bottom: max(34px, calc(env(safe-area-inset-bottom) + 20px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px; height: 3px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#breath-meter.urgent { opacity: 1; }
+#breath-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff9c7a, #ff4530);
+}
+
+#chapter-toast {
+  position: absolute;
+  top: 24%;
+  width: 100%;
+  text-align: center;
+  font-size: clamp(20px, 4vh, 34px);
+  letter-spacing: 0.45em;
+  text-indent: 0.45em;
+  color: #fdf6e8;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.9);
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+#chapter-toast.show { opacity: 1; }
+
+#callout {
+  position: absolute;
+  top: 38%;
+  width: 100%;
+  text-align: center;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  font-size: clamp(16px, 3.2vh, 26px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #ffe9c4;
+  text-shadow: 0 0 18px rgba(255, 180, 80, 0.5), 0 2px 8px rgba(0,0,0,0.95);
+  opacity: 0;
+}
+#callout.pop { animation: calloutPop 1.1s ease-out forwards; }
+#callout.bad { color: #ff8d7a; text-shadow: 0 0 18px rgba(255, 60, 30, 0.6), 0 2px 8px rgba(0,0,0,0.95); }
+@keyframes calloutPop {
+  0%   { opacity: 0; transform: scale(1.6); filter: blur(4px); }
+  12%  { opacity: 1; transform: scale(1);   filter: none; }
+  70%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.92) translateY(-12px); }
+}
+
+/* ---------- full screens ---------- */
+
+#title-screen, #end-screen {
+  position: absolute; inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 38%, rgba(30, 4, 3, 0.82), rgba(0, 0, 0, 0.96) 85%);
+  z-index: 10;
+  transition: opacity 0.9s ease;
+}
+#title-screen.fading, #end-screen.fading { opacity: 0; pointer-events: none; }
+
+.title-inner {
+  max-width: min(88vw, 520px);
+  text-align: center;
+  padding: 20px;
+}
+
+h1 {
+  font-size: clamp(72px, 19vw, 150px);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-indent: 0.12em;
+  color: #f6ecdc;
+  text-shadow:
+    0 0 40px rgba(255, 80, 40, 0.35),
+    0 4px 30px rgba(0, 0, 0, 0.9);
+  line-height: 1;
+}
+
+.subtitle {
+  margin-top: 8px;
+  font-style: italic;
+  font-size: clamp(14px, 2.4vh, 19px);
+  color: #cdb9a0;
+  letter-spacing: 0.04em;
+}
+
+.rules {
+  margin: 26px auto 6px;
+  font-size: clamp(13px, 2vh, 16px);
+  line-height: 1.65;
+  color: #baa68d;
+}
+.rules p { margin-bottom: 10px; }
+.rules b { color: #f0e4cd; }
+.key {
+  font-family: Futura, 'Avenir Next', sans-serif;
+  font-size: 0.78em;
+  letter-spacing: 0.18em;
+  color: #f3e7cd;
+  border: 1px solid rgba(243, 231, 205, 0.4);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+button {
+  margin-top: 26px;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  padding: 16px 30px;
+  color: #1c0805;
+  background: linear-gradient(180deg, #f7eedd, #d8c3a2);
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(255, 220, 160, 0.25), 0 4px 18px rgba(0,0,0,0.6);
+}
+button:active { transform: scale(0.96); }
+
+.fineprint {
+  margin-top: 22px;
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(190, 168, 140, 0.55);
+}
+
+h2 {
+  font-size: clamp(34px, 7vw, 56px);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: #f6ecdc;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.9);
+}
+#end-sub {
+  margin-top: 10px;
+  font-style: italic;
+  color: #cdb9a0;
+}
+#end-story {
+  margin: 20px auto 0;
+  max-height: 30vh;
+  overflow-y: auto;
+  font-style: italic;
+  font-size: clamp(12px, 1.9vh, 15px);
+  line-height: 1.7;
+  color: #a8957c;
+  -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent);
+          mask-image: linear-gradient(180deg, #000 80%, transparent);
+}
+#end-score {
+  margin-top: 18px;
+  font-size: clamp(20px, 3.4vh, 30px);
+  letter-spacing: 0.12em;
+  color: #f7efdd;
+}
+
+#loading {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+  z-index: 20;
+  font-style: italic;
+  letter-spacing: 0.1em;
+  color: #7d6a55;
+  transition: opacity 0.6s;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+
+.hidden { display: none !important; }

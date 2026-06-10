@@ -1,0 +1,18 @@
+{
+  "name": "maw",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MAW — a game about talking with your mouth full",
+  "type": "module",
+  "scripts": {
+    "test": "node test/smoke.mjs",
+    "shots": "node test/shot.mjs",
+    "serve": "python3 -m http.server 8000"
+  },
+  "dependencies": {
+    "three": "file:./shims/three"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}
