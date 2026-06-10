@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="MAW — a game about talking with your mouth full.">
+<title>MAW</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <!-- vignette / breath overlays -->
+  <div id="vignette"></div>
+  <div id="redflash"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="story-ribbon"><span id="story-text"></span><span id="story-caret">&nbsp;</span></div>
+    <div id="hud-row">
+      <div id="manners" title="Manners"></div>
+      <div id="score">0</div>
+    </div>
+    <div id="chapter-toast" class="hidden"></div>
+    <div id="callout" class="hidden"></div>
+    <div id="hint">HOLD&nbsp;ANYWHERE&nbsp;TO&nbsp;BITE&nbsp;DOWN&nbsp;&middot;&nbsp;RELEASE&nbsp;TO&nbsp;SPEAK</div>
+    <div id="breath-meter"><div id="breath-fill"></div></div>
+  </div>
+
+  <!-- Title screen -->
+  <div id="title-screen">
+    <div class="title-inner">
+      <h1>MAW</h1>
+      <p class="subtitle">a game about talking with your mouth full</p>
+      <div class="rules">
+        <p><em>You are the mouth.</em> Dinner in Dalmatia, and you simply must tell
+        the story of your travels through Croatia &mdash; mid-bite.</p>
+        <p><span class="key">RELEASE</span> to let each <b>word</b> of the story escape your lips.</p>
+        <p><span class="key">HOLD</span> to bite down and stop the <b>food</b> from escaping.</p>
+        <p>Three pieces of food past your lips and your reputation is finished.</p>
+      </div>
+      <button id="start-btn">TAP&nbsp;TO&nbsp;OPEN&nbsp;WIDE</button>
+      <p class="fineprint">headphones recommended &middot; medically dubious &middot; gastronomically accurate</p>
+    </div>
+  </div>
+
+  <!-- End screens -->
+  <div id="end-screen" class="hidden">
+    <div class="title-inner">
+      <h2 id="end-title"></h2>
+      <p id="end-sub"></p>
+      <div id="end-story"></div>
+      <div id="end-score"></div>
+      <button id="retry-btn">ONCE&nbsp;MORE,&nbsp;WITH&nbsp;FEELING</button>
+    </div>
+  </div>
+
+  <div id="loading"><span>salivating&hellip;</span></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
