@@ -3,7 +3,7 @@
 // food gets jostled loose and must NOT. The conflict writes itself.
 
 import * as THREE from 'three';
-import { MOUTH } from './anatomy.js';
+import { MOUTH, upperLingualSpot } from './anatomy.js';
 import { WORDS, FOODS, chapterAt, STORY, WIN_LINES, LOSE_LINES } from './story.js';
 
 const clamp = THREE.MathUtils.clamp;
@@ -84,6 +84,12 @@ function foodMaterial(spec) {
   });
 }
 
+// Arch angles of the gaps between the upper front teeth — candidate spots
+// for a morsel to wedge itself into.
+const STUCK_ANGLES = [0.16, 0.34, 0.52];
+const STUCK_HOLD = 0.55;        // seconds of holding before bullet time
+const BULLET_SCALE = 0.12;      // how slow bullet time runs
+
 // =================================================================== Game ==
 
 export class Game {
@@ -120,6 +126,13 @@ export class Game {
     this.timeScale = 1;
     this.endTimer = -1;
 
+    // food stuck in the teeth + bullet time
+    this.chompedCount = 0;
+    this.nextStuckAt = 5 + ((Math.random() * 6) | 0); // every 5–10 pieces
+    this.stuck = null;        // { mesh, spec, highlight }
+    this.bulletTime = false;
+    this.holdTime = 0;
+
     this._rng = () => Math.random();
 
     // shared particle resources
@@ -134,7 +147,12 @@ export class Game {
   // -------------------------------------------------------------- controls
 
   pointerDown() { this.pressed = true; }
-  pointerUp() { this.pressed = false; }
+
+  pointerUp() {
+    this.pressed = false;
+    this.holdTime = 0;
+    if (this.bulletTime) this._exitBulletTime();
+  }
 
   start() {
     this.state = 'playing';
@@ -148,6 +166,14 @@ export class Game {
     this.activeWord = null;
     for (const f of this.foods) this.scene.remove(f.mesh);
     this.foods = [];
+    if (this.stuck) { this.scene.remove(this.stuck.mesh); this.stuck = null; }
+    this.bulletTime = false;
+    this.holdTime = 0;
+    this.chompedCount = 0;
+    this.nextStuckAt = 5 + ((Math.random() * 6) | 0);
+    this.ui.bulletTime(false);
+    this.ui.stuckTip(null);
+    this.audio.stopStory();
     this.ui.resetStory();
     this.ui.setScore(0);
     this.ui.setManners(3);
@@ -243,7 +269,8 @@ export class Game {
   }
 
   _wordEscaped(w) {
-    this.audio.wordEscape(1 - this.difficulty * 0.25);
+    // the narrator speaks the word; it stretches when time is dilated
+    this.audio.wordEscape(1 - this.difficulty * 0.25, this.wordIndex, clamp(this.timeScale, 0.5, 1));
     this.ui.appendWord(w.text);
     this.score += 10 * this.streak;
     this.streak = Math.min(this.streak + 1, 5);
@@ -435,13 +462,16 @@ export class Game {
     this.chewPulse = 1;
 
     let bit = false;
+    let bitSpec = null;
     for (let i = this.foods.length - 1; i >= 0; i--) {
       const f = this.foods[i];
       const p = f.mesh.position;
       if (f.state !== 'loose') continue;
       if (p.z > 0.4 && p.z < MOUTH.lipsZ && p.y > -2.6 && p.y < 1.6) {
         bit = true;
+        bitSpec = f.spec;
         f.chews++;
+        this.chompedCount++;
         f.mesh.scale.multiplyScalar(0.76);
         // juice!
         this._burst(p, f.spec.juice, 10);
@@ -458,9 +488,73 @@ export class Game {
     if (bit) {
       this.audio.crunch(0.7);
       this.ui.setScore(this.score);
+      // every so often, a piece wedges itself between the teeth
+      if (!this.stuck && this.chompedCount >= this.nextStuckAt && this.state === 'playing') {
+        this._stickFood(bitSpec);
+      }
     }
     // saliva spray regardless
     this._burst(new THREE.Vector3(0, 0.1, 3.4), 0xd9a0a0, 6, this._salivaMat);
+  }
+
+  // ------------------------------------------------ stuck food / bullet time
+
+  _stickFood(spec) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const a = side * STUCK_ANGLES[(Math.random() * STUCK_ANGLES.length) | 0];
+    const spot = upperLingualSpot(a, 0.3 + Math.random() * 0.15, 0.26);
+
+    const mesh = new THREE.Mesh(foodGeometry(spec, this._rng), foodMaterial(spec));
+    mesh.material.emissive = new THREE.Color(spec.juice);
+    mesh.material.emissiveIntensity = 0;
+    mesh.scale.set(0.26, 0.26, 0.2); // a shard, squashed into the gap
+    mesh.position.copy(spot);
+    mesh.rotation.set(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
+    mesh.castShadow = true;
+    this.scene.add(mesh);
+
+    this.stuck = { mesh, spec, highlight: false };
+    this.ui.callout('STUCK IN YOUR TEETH', true);
+    this.ui.stuckTip('something’s stuck · long-press to focus');
+    this.audio.stuck();
+  }
+
+  _enterBulletTime() {
+    this.bulletTime = true;
+    this.audio.bulletIn();
+    this.ui.bulletTime(true);
+    this.ui.callout('BULLET TIME');
+    this.ui.stuckTip('keep holding · circle it with a second finger');
+  }
+
+  _exitBulletTime() {
+    if (!this.bulletTime) return;
+    this.bulletTime = false;
+    this.audio.bulletOut();
+    this.ui.bulletTime(false);
+    this.ui.stuckTip(this.stuck ? 'something’s stuck · long-press to focus' : null);
+  }
+
+  // The drawn circle landed — make the morsel glow while the lasso snaps.
+  highlightStuck() {
+    if (this.stuck) this.stuck.highlight = true;
+  }
+
+  // The highlight peaked: poof, score, back to dinner.
+  clearStuck() {
+    const s = this.stuck;
+    if (!s) return;
+    this.stuck = null;
+    this._burst(s.mesh.position, s.spec.juice, 12);
+    this._burst(s.mesh.position, 0xfff2d0, 6);
+    this.scene.remove(s.mesh);
+    s.mesh.material.dispose();
+    this.audio.poof();
+    this.score += 50;
+    this.ui.setScore(this.score);
+    this.ui.callout('PICKED CLEAN · +50');
+    this.nextStuckAt = this.chompedCount + 5 + ((Math.random() * 6) | 0);
+    this._exitBulletTime();
   }
 
   _burst(at, color, n, material = null) {
@@ -527,10 +621,22 @@ export class Game {
   // ---------------------------------------------------------------- update
 
   update(dt) {
+    // long press while something's stuck → slip into bullet time
+    if (this.pressed && this.stuck && !this.bulletTime && this.state === 'playing') {
+      this.holdTime += dt;
+      if (this.holdTime > STUCK_HOLD) this._enterBulletTime();
+    } else if (!this.pressed) {
+      this.holdTime = 0;
+    }
+    if (this.bulletTime && this.state !== 'playing') this._exitBulletTime();
+
     // jaw spring — target depends on input + breath
     const openBase = MOUTH.maxJawAngle * 0.6;
     let target;
-    if (this.forcedOpen > 0) {
+    if (this.bulletTime) {
+      // teeth bared for inspection; the held finger isn't a bite right now
+      target = MOUTH.maxJawAngle * 0.62;
+    } else if (this.forcedOpen > 0) {
       target = MOUTH.maxJawAngle * 0.85;
       this.forcedOpen -= dt;
     } else if (this.pressed && this.state === 'playing') {
@@ -572,12 +678,27 @@ export class Game {
     this.chewPulse = Math.max(0, (this.chewPulse || 0) - dt * 3);
     this.shake = Math.max(0, this.shake - dt * 2.2);
 
+    // the world runs on dilated time; the jaw and inputs stay realtime
+    const gdt = dt * this.timeScale;
     if (this.state === 'playing') {
-      this._updateWord(dt);
-      this._updateFood(dt);
+      this._updateWord(gdt);
+      this._updateFood(gdt);
     }
-    this._updateParticles(dt);
+    this._updateParticles(gdt);
     this.ui.fadeHintMaybe();
+
+    // the stuck morsel smoulders in bullet time, flares when highlighted
+    if (this.stuck) {
+      const m = this.stuck.mesh.material;
+      if (this.stuck.highlight) {
+        m.emissiveIntensity = Math.min(2.6, m.emissiveIntensity + dt * 7);
+      } else {
+        const glow = this.bulletTime ? 0.3 + 0.2 * Math.sin(performance.now() * 0.007) : 0;
+        m.emissiveIntensity = lerp(m.emissiveIntensity, glow, 1 - Math.exp(-dt * 8));
+      }
+      // no streak builds while you're talking with food in your teeth
+      this.streak = Math.min(this.streak, 1);
+    }
 
     // crisis slow-mo: word and food both near the exit
     let crisis = false;
@@ -586,7 +707,8 @@ export class Game {
         if (f.mesh.position.z > 4.2) { crisis = true; break; }
       }
     }
-    this.timeScale = lerp(this.timeScale, crisis ? 0.55 : 1, dt * 6);
+    const targetScale = this.bulletTime ? BULLET_SCALE : crisis ? 0.55 : 1;
+    this.timeScale = lerp(this.timeScale, targetScale, dt * (this.bulletTime ? 10 : 6));
 
     // end of game
     if (this.endTimer > 0) {
@@ -597,7 +719,10 @@ export class Game {
         const lines = won
           ? WIN_LINES[(Math.random() * WIN_LINES.length) | 0]
           : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
+        this._exitBulletTime();
+        this.ui.stuckTip(null);
         this.ui.showEnd(won, lines, won ? STORY.replace(/\s+/g, ' ') : '', this.score);
+        if (won) this.audio.playStory(); // the table hears the whole telling
       }
     }
 

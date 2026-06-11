@@ -47,6 +47,23 @@ body {
 }
 #redflash.flash { opacity: 1; transition: opacity 0.05s; }
 
+/* bullet time: the room goes cool and close */
+#bullet-vignette {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(40, 80, 140, 0) 42%, rgba(18, 38, 88, 0.5) 100%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+#bullet-vignette.on { opacity: 1; }
+
+/* the glowing pencil layer */
+#lasso {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
 /* ---------- HUD ---------- */
 
 #hud {
@@ -145,6 +162,21 @@ body {
   transition: opacity 1s;
 }
 #hint.faded { opacity: 0; }
+
+#stuck-tip {
+  position: absolute;
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 34px));
+  width: 100%;
+  text-align: center;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #ffd9a0;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 14px rgba(255, 170, 60, 0.4);
+  animation: stuckPulse 1.6s ease-in-out infinite;
+}
+@keyframes stuckPulse { 50% { opacity: 0.45; } }
 
 #breath-meter {
   position: absolute;
