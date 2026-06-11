@@ -17,6 +17,7 @@ import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
 import { VoiceEngine } from './voice.js';
 import { Lasso } from './lasso.js';
+import { Lane } from './lane.js';
 
 // ------------------------------------------------------------------- setup
 
@@ -168,6 +169,7 @@ const mouth = buildMouth(scene);
 const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });
 const lasso = new Lasso(document.getElementById('lasso'));
+const lane = new Lane(document.getElementById('lane'));
 
 // ------------------------------------------------------------------ postfx
 
@@ -273,6 +275,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
   lasso.resize();
+  lane.resize();
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -350,10 +353,15 @@ function frame() {
   }
   lasso.update(rawDt);
   lasso.render();
+
+  // the exit lane telegraphs what's riding toward the lips
+  lane.set(game.laneItems, game.state === 'playing' && !game.bulletTime);
+  lane.update(rawDt);
+  lane.render();
 }
 
 // debug / test handle
-window.MAW = { game, mouth, lasso, camera, audio, voice };
+window.MAW = { game, mouth, lasso, lane, camera, audio, voice };
 
 ui.ready();
 frame();

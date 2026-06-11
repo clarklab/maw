@@ -456,13 +456,13 @@ function palateTextures(rng) {
   seam.addColorStop(1, 'rgba(225, 150, 150, 0)');
   ctx.fillStyle = seam;
   ctx.fillRect(w / 2 - 5, 0, 10, h);
-  ctx.fillStyle = 'rgba(110, 42, 52, 0.3)';
+  ctx.fillStyle = 'rgba(110, 42, 52, 0.16)';
   ctx.fillRect(w / 2 - 12, 0, 6, h * 0.7);
   ctx.fillRect(w / 2 + 6, 0, 6, h * 0.7);
-  bctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  bctx.lineWidth = 9;
-  bctx.shadowColor = 'rgba(0,0,0,0.5)';
-  bctx.shadowBlur = 6;
+  bctx.strokeStyle = 'rgba(0,0,0,0.26)';
+  bctx.lineWidth = 5;
+  bctx.shadowColor = 'rgba(0,0,0,0.25)';
+  bctx.shadowBlur = 4;
   bctx.beginPath(); bctx.moveTo(w / 2, 0); bctx.lineTo(w / 2, h * 0.72); bctx.stroke();
   bctx.shadowBlur = 0;
 
@@ -476,21 +476,25 @@ function palateTextures(rng) {
 }
 
 function buildPalate() {
-  const rxIn = 2.30, rzIn = 3.85, zOff = UPPER_ARCH.zOff;
+  const rxIn = 2.46, rzIn = 4.02, zOff = UPPER_ARCH.zOff;
   return paramGeometry(56, 72, (u, v, out) => {
     // v: 0 back (soft palate) → 1 front (behind the incisors)
     const s = u * 2 - 1; // -1..1 across
     const widthBack = 1.78, widthFront = 0.4;
     const vault = sstep(0, 0.34, v); // how far forward we've come
-    const halfW = lerp(widthBack, rxIn * Math.sqrt(Math.max(0.02, 1 - Math.pow((lerp(-1.35, zOff + rzIn - 0.45, v) - zOff) / rzIn, 2))), vault);
+    const halfW = lerp(widthBack, rxIn * Math.sqrt(Math.max(0.02, 1 - Math.pow((lerp(-1.35, zOff + rzIn - 0.2, v) - zOff) / rzIn, 2))), vault);
     const x = s * Math.max(halfW, widthFront);
-    let z = lerp(-1.45, zOff + rzIn - 0.42, Math.pow(v, 0.92));
+    let z = lerp(-1.45, zOff + rzIn - 0.18, Math.pow(v, 0.92));
     // pull the front corners back along the arch curve
     z -= s * s * sstep(0.55, 1, v) * 1.45;
 
-    // vault: highest mid-palate, shallower at front, sloping at the velum
-    const depth = lerp(0.65, 1.1, Math.sin(Math.min(v * 1.25, 1) * Math.PI * 0.5));
+    // vault: highest mid-palate, descending to the alveolar ridge in front
+    // so the surface meets the gums with no trough behind the teeth
+    let depth = lerp(0.65, 1.1, Math.sin(Math.min(v * 1.25, 1) * Math.PI * 0.5));
+    depth *= 1 - sstep(0.78, 1, v) * 0.62;
     let y = 0.78 + depth * Math.pow(Math.max(0, 1 - s * s), 0.85);
+    // lateral borders dive into the lingual gum wall — no slit along the arch
+    y -= sstep(0.8, 1, Math.abs(s)) * sstep(0.34, 0.6, v) * 0.35;
     // soft palate droops toward the uvula
     y -= sstep(0.18, 0.0, v) * 0.45 * (1 - s * s * 0.5);
     // rugae: transverse ridges across the front half of the vault
