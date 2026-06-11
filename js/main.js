@@ -158,6 +158,11 @@ const toothGleam = new THREE.PointLight(0xfff6e2, 1.0, 4.2, 2);
 toothGleam.position.set(0, 0.3, 4.4);
 scene.add(toothGleam);
 
+// the lower row catches its own light, or it reads as rotten stumps
+const lowerGleam = new THREE.PointLight(0xfff0da, 0.8, 3.6, 2);
+lowerGleam.position.set(0, -0.55, 4.0);
+scene.add(lowerGleam);
+
 // ----------------------------------------------------------------- modules
 
 const ui = new UI();
@@ -320,6 +325,7 @@ function frame() {
   fleshL.intensity = 1.3 * pulse;
   fleshR.intensity = 1.3 * pulse * 0.94;
   toothGleam.intensity = 0.8 + 2.2 * open01;
+  lowerGleam.intensity = 0.5 + 1.6 * open01;
   palateWash.intensity = 1.2 + 1.6 * open01;
 
   // adaptive exposure — eyes adjust to the dark when the mouth shuts
