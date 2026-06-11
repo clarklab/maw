@@ -39,6 +39,12 @@ const exists = (p) => access(p).then(() => true, () => false);
 // punctuation (keeps internal apostrophes/hyphens, e.g. "fishermen's").
 const spoken = (token) => token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
 
+// Hand-tuned retakes: tiny function words can drift in voice/gender when
+// rendered bare — anchor them with a closing period and firmer settings.
+const RETAKES = {
+  its: { say: 'its.', settings: { stability: 0.7, similarity_boost: 0.85 } },
+};
+
 async function tts(text, format, settings) {
   const body = { text, model_id: MODEL, voice_settings: settings };
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -75,6 +81,7 @@ let rendered = 0, skipped = 0;
 for (let i = 0; i < WORDS.length; i++) {
   const say = spoken(WORDS[i]);
   const dedupeKey = say.toLowerCase();
+  const retake = RETAKES[dedupeKey];
   let name = fileFor.get(dedupeKey);
   if (!name) {
     name = `${String(i).padStart(3, '0')}.mp3`; // named for first occurrence
@@ -83,7 +90,11 @@ for (let i = 0; i < WORDS.length; i++) {
     if (await exists(file)) {
       skipped++;
     } else {
-      await writeFile(file, await tts(say, WORD_FORMAT, WORD_SETTINGS));
+      await writeFile(file, await tts(
+        retake ? retake.say : say,
+        WORD_FORMAT,
+        retake ? retake.settings : WORD_SETTINGS
+      ));
       rendered++;
       process.stdout.write(`\r  words: ${i + 1}/${WORDS.length} (${say})${' '.repeat(20)}`);
     }

@@ -135,6 +135,18 @@ const tongueBounce = new THREE.PointLight(0xff9a7a, 1.2, 6, 2);
 tongueBounce.position.set(0, 0.85, 2.6);
 scene.add(tongueBounce);
 
+// warm wash up into the palate vault so the rugae read instead of
+// disappearing into shadow
+const palateWash = new THREE.PointLight(0xffb59a, 1.6, 6, 2);
+palateWash.position.set(0, 1.0, 1.3);
+scene.add(palateWash);
+
+// soft fill in the pocket behind the front teeth — lingual gums and the
+// front of the vault otherwise sit in a dead shadow
+const vestibuleGlow = new THREE.PointLight(0xffc4a4, 0.9, 2.8, 2);
+vestibuleGlow.position.set(0, 0.95, 4.0);
+scene.add(vestibuleGlow);
+
 // soft glow near the camera so the throat-side anatomy never goes pitch black
 const throatGlow = new THREE.PointLight(0xff6a50, 0.5, 4.5, 2);
 throatGlow.position.set(0, 0.7, -1.0);
@@ -142,7 +154,7 @@ scene.add(throatGlow);
 
 // gleam on the front of both dental arches — the smile is the frame
 const toothGleam = new THREE.PointLight(0xfff6e2, 1.0, 4.2, 2);
-toothGleam.position.set(0, 0.12, 4.5);
+toothGleam.position.set(0, 0.3, 4.4);
 scene.add(toothGleam);
 
 // ----------------------------------------------------------------- modules
@@ -305,6 +317,7 @@ function frame() {
   fleshL.intensity = 1.3 * pulse;
   fleshR.intensity = 1.3 * pulse * 0.94;
   toothGleam.intensity = 0.8 + 2.2 * open01;
+  palateWash.intensity = 1.2 + 1.6 * open01;
 
   // adaptive exposure — eyes adjust to the dark when the mouth shuts
   const targetExposure = 1.08 + (1 - open01) * 0.5;
