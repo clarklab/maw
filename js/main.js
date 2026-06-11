@@ -323,7 +323,7 @@ function frame() {
   );
   camLook.set(
     Math.sin(elapsed * 0.4) * 0.15,
-    -0.06 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.22,
+    -0.2 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.18,
     6.0
   );
   camera.lookAt(camLook);
