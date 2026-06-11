@@ -282,7 +282,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at 50% 38%, rgba(30, 4, 3, 0.82), rgba(0, 0, 0, 0.96) 85%);
+  /* translucent enough that the mouth idles behind the title */
+  background: radial-gradient(ellipse at 50% 38%, rgba(24, 3, 2, 0.6), rgba(0, 0, 0, 0.9) 88%);
   z-index: 10;
   transition: opacity 0.9s ease;
 }
@@ -295,41 +296,77 @@ body {
 }
 
 h1 {
-  font-size: clamp(72px, 19vw, 150px);
+  font-size: clamp(84px, 22vw, 170px);
   font-weight: 400;
-  letter-spacing: 0.12em;
-  text-indent: 0.12em;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
   color: #f6ecdc;
   text-shadow:
     0 0 40px rgba(255, 80, 40, 0.35),
     0 4px 30px rgba(0, 0, 0, 0.9);
   line-height: 1;
+  animation: titleGlow 4s ease-in-out infinite;
+}
+@keyframes titleGlow {
+  50% {
+    text-shadow:
+      0 0 64px rgba(255, 110, 50, 0.6),
+      0 4px 30px rgba(0, 0, 0, 0.9);
+  }
 }
 
 .subtitle {
-  margin-top: 8px;
+  margin-top: 6px;
   font-style: italic;
   font-size: clamp(14px, 2.4vh, 19px);
   color: #cdb9a0;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
-.rules {
-  margin: 26px auto 6px;
-  font-size: clamp(13px, 2vh, 16px);
-  line-height: 1.65;
-  color: #baa68d;
+/* minimal two-line control legend — the game teaches the rest in play */
+.controls {
+  margin: 44px auto 10px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
 }
-.rules p { margin-bottom: 10px; }
-.rules b { color: #f0e4cd; }
+.ctl {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ctl-label {
+  font-style: italic;
+  font-size: clamp(13px, 2.1vh, 16px);
+  color: #baa68d;
+  letter-spacing: 0.03em;
+}
 .key {
   font-family: Futura, 'Avenir Next', sans-serif;
-  font-size: 0.78em;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-indent: 0.1em;
   color: #f3e7cd;
-  border: 1px solid rgba(243, 231, 205, 0.4);
-  border-radius: 4px;
-  padding: 2px 7px;
+  border: 1px solid rgba(243, 231, 205, 0.35);
+  border-radius: 100px;
+  padding: 7px 0;
+  min-width: 92px;
+  text-align: center;
+}
+
+/* staggered entrance */
+.title-inner > * {
+  opacity: 0;
+  animation: riseIn 0.8s ease-out forwards;
+}
+.title-inner > *:nth-child(2) { animation-delay: 0.12s; }
+.title-inner > *:nth-child(3) { animation-delay: 0.26s; }
+.title-inner > *:nth-child(4) { animation-delay: 0.4s; }
+.title-inner > *:nth-child(5) { animation-delay: 0.55s; }
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
 }
 
 button {
