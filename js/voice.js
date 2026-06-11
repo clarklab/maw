@@ -11,11 +11,18 @@ export class VoiceEngine {
   constructor(base = 'assets/voice/') {
     this.base = base;
     this.manifest = null;
-    this.raw = new Map();      // wordIndex | 'story' → ArrayBuffer
-    this.buffers = new Map();  // wordIndex | 'story' → AudioBuffer
+    this.raw = new Map();      // filename | 'story' → ArrayBuffer
+    this.buffers = new Map();  // filename | 'story' → AudioBuffer
     this.ctx = null;
     this.out = null;
     this.storySource = null;
+  }
+
+  // The clip filename for word i (duplicate words share one clip).
+  _file(i) {
+    if (!this.manifest) return null;
+    if (this.manifest.files) return this.manifest.files[i] || null;
+    return `${String(i).padStart(3, '0')}.mp3`; // older manifests
   }
 
   // Fetch the clips in the background. Safe to call at page load — no
@@ -35,8 +42,14 @@ export class VoiceEngine {
       } catch { /* offline — the synth voice covers it */ }
     };
     // early words first: the player hears them within seconds of starting
-    const queue = this.manifest.words.map((_, i) =>
-      () => fetchOne(i, `${this.base}words/${String(i).padStart(3, '0')}.mp3`));
+    const seen = new Set();
+    const queue = [];
+    for (let i = 0; i < this.manifest.words.length; i++) {
+      const name = this._file(i);
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      queue.push(() => fetchOne(name, `${this.base}words/${name}`));
+    }
     queue.push(() => fetchOne('story', this.base + this.manifest.story));
     await Promise.all(Array.from({ length: 6 }, async () => {
       while (queue.length) await queue.shift()();
@@ -68,8 +81,9 @@ export class VoiceEngine {
   // Speak word i. rate < 1 stretches it during bullet time.
   // Returns true if the clip will play (so the caller can skip its synth).
   playWord(i, rate = 1, volume = 0.9) {
-    if (!this.ctx || !this.has(i)) return false;
-    this._buffer(i).then((buf) => {
+    const file = this._file(i);
+    if (!this.ctx || !file || !this.has(file)) return false;
+    this._buffer(file).then((buf) => {
       if (!buf) return;
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
@@ -81,7 +95,10 @@ export class VoiceEngine {
       src.start();
     });
     // decode ahead so upcoming words start with no hiccup
-    for (let k = 1; k <= 3; k++) if (this.raw.has(i + k)) this._buffer(i + k);
+    for (let k = 1; k <= 3; k++) {
+      const f = this._file(i + k);
+      if (f && this.raw.has(f)) this._buffer(f);
+    }
     return true;
   }
 
