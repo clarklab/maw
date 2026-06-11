@@ -29,6 +29,17 @@ body {
   display: block;
 }
 
+/* bullet-time lasso overlay — drawn from JS, never intercepts touches */
+#lasso {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 5;
+}
+
 /* ---------- atmosphere overlays ---------- */
 
 #vignette {

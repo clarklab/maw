@@ -120,6 +120,12 @@ export class Game {
     this.timeScale = 1;
     this.endTimer = -1;
 
+    // food stuck in the teeth
+    this.stuck = null;          // { mesh, spec, pulse }
+    this.bulletTime = false;    // long-press slow-mo while picking
+    this.holdTime = 0;
+    this.bitesUntilStuck = this._stuckQuota();
+
     this._rng = () => Math.random();
 
     // shared particle resources
@@ -146,8 +152,14 @@ export class Game {
     this.biteTimer = 1.2;
     this.endTimer = -1;
     this.activeWord = null;
+    this.audio.stopStory();
     for (const f of this.foods) this.scene.remove(f.mesh);
     this.foods = [];
+    if (this.stuck) this.scene.remove(this.stuck.mesh);
+    this.stuck = null;
+    this.bulletTime = false;
+    this.holdTime = 0;
+    this.bitesUntilStuck = this._stuckQuota();
     this.ui.resetStory();
     this.ui.setScore(0);
     this.ui.setManners(3);
@@ -234,7 +246,7 @@ export class Game {
         // MUFFLED
         w.muffled = true;
         this.streak = 1;
-        this.audio.muffled();
+        this.audio.muffled(this.wordIndex);
         this.mouth.kickUvula(1.6, 0.4);
         this.ui.callout('MMMPH', true);
         this.shake = Math.max(this.shake, 0.35);
@@ -243,7 +255,7 @@ export class Game {
   }
 
   _wordEscaped(w) {
-    this.audio.wordEscape(1 - this.difficulty * 0.25);
+    this.audio.wordEscape(1 - this.difficulty * 0.25, this.wordIndex);
     this.ui.appendWord(w.text);
     this.score += 10 * this.streak;
     this.streak = Math.min(this.streak + 1, 5);
@@ -426,6 +438,50 @@ export class Game {
     }
   }
 
+  // ----------------------------------------------------------- stuck food
+
+  _stuckQuota() { return 5 + ((Math.random() * 6) | 0); } // every 5–10 bites
+
+  // Interdental gaps of the (static) upper arch, nudged lingual so the
+  // wedged piece faces the camera. Picked at random per incident.
+  static STUCK_SPOTS = [
+    new THREE.Vector3(0, 0.30, 5.16),     // right between the front teeth
+    new THREE.Vector3(-0.86, 0.32, 4.94), // central / lateral
+    new THREE.Vector3(0.86, 0.32, 4.94),
+    new THREE.Vector3(-1.40, 0.30, 4.52), // lateral / canine
+    new THREE.Vector3(1.40, 0.30, 4.52),
+  ];
+
+  // A bitten piece wedges itself between two teeth instead of bouncing back.
+  _stickFood(f, idx) {
+    this.foods.splice(idx, 1);
+    const spot = Game.STUCK_SPOTS[(Math.random() * Game.STUCK_SPOTS.length) | 0];
+    const m = f.mesh;
+    m.position.copy(spot);
+    m.scale.setScalar(f.r * 0.55);
+    m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    m.material.emissive = new THREE.Color(f.spec.juice);
+    m.material.emissiveIntensity = 0;
+    this.stuck = { mesh: m, spec: f.spec, pulse: 0 };
+    this.bitesUntilStuck = this._stuckQuota();
+    this.audio.stuckSqueak();
+    this.ui.callout('STUCK IN YOUR TEETH — HOLD TO FOCUS', true);
+  }
+
+  // The lasso got it: poof, points, back to dinner.
+  clearStuck() {
+    if (!this.stuck) return;
+    const m = this.stuck.mesh;
+    this._burst(m.position, this.stuck.spec.juice, 12);
+    this._burst(m.position, 0xfdf8ec, 6);
+    this.scene.remove(m);
+    this.stuck = null;
+    this.score += 40;
+    this.ui.setScore(this.score);
+    this.ui.callout('PICKED CLEAN · +40');
+    this.audio.pickSuccess();
+  }
+
   // -------------------------------------------------------------- chomping
 
   _chomp() {
@@ -441,6 +497,10 @@ export class Game {
       if (f.state !== 'loose') continue;
       if (p.z > 0.4 && p.z < MOUTH.lipsZ && p.y > -2.6 && p.y < 1.6) {
         bit = true;
+        if (--this.bitesUntilStuck <= 0 && !this.stuck) {
+          this._stickFood(f, i);
+          continue;
+        }
         f.chews++;
         f.mesh.scale.multiplyScalar(0.76);
         // juice!
@@ -553,9 +613,32 @@ export class Game {
       this._chomp();
     }
 
-    // breath management
+    // bullet time: with something stuck, keep holding the bite to focus
     const open01 = this.jawAngle / MOUTH.maxJawAngle;
-    if (open01 < 0.18 && this.state === 'playing') {
+    if (this.pressed && this.stuck && this.state === 'playing') {
+      this.holdTime += dt;
+      if (!this.bulletTime && this.holdTime > 0.55 && open01 < 0.3) {
+        this.bulletTime = true;
+        this.audio.bulletTime(true);
+        this.ui.callout('CIRCLE IT WITH ANOTHER FINGER');
+      }
+    } else {
+      this.holdTime = 0;
+    }
+    if (this.bulletTime && (!this.pressed || !this.stuck || this.state !== 'playing')) {
+      this.bulletTime = false;
+      this.audio.bulletTime(false);
+    }
+
+    // the wedged piece throbs so you can find it (harder while time runs)
+    if (this.stuck) {
+      this.stuck.pulse += dt * 5;
+      const breathe = 0.3 + 0.25 * Math.sin(this.stuck.pulse);
+      this.stuck.mesh.material.emissiveIntensity = this.bulletTime ? breathe * 2.2 : breathe;
+    }
+
+    // breath management (suspended while picking — dramatic license)
+    if (open01 < 0.18 && this.state === 'playing' && !this.bulletTime) {
       this.closedTime += dt;
       if (this.closedTime > 3.6) {
         this.forcedOpen = 1.3;
@@ -572,9 +655,12 @@ export class Game {
     this.chewPulse = Math.max(0, (this.chewPulse || 0) - dt * 3);
     this.shake = Math.max(0, this.shake - dt * 2.2);
 
+    // bullet time slows the gameplay clock too (crisis slow-mo stays visual,
+    // as before — the danger keeps moving)
+    const gdt = this.bulletTime ? dt * this.timeScale : dt;
     if (this.state === 'playing') {
-      this._updateWord(dt);
-      this._updateFood(dt);
+      this._updateWord(gdt);
+      this._updateFood(gdt);
     }
     this._updateParticles(dt);
     this.ui.fadeHintMaybe();
@@ -586,7 +672,7 @@ export class Game {
         if (f.mesh.position.z > 4.2) { crisis = true; break; }
       }
     }
-    this.timeScale = lerp(this.timeScale, crisis ? 0.55 : 1, dt * 6);
+    this.timeScale = lerp(this.timeScale, this.bulletTime ? 0.12 : crisis ? 0.55 : 1, dt * 6);
 
     // end of game
     if (this.endTimer > 0) {
@@ -598,6 +684,7 @@ export class Game {
           ? WIN_LINES[(Math.random() * WIN_LINES.length) | 0]
           : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
         this.ui.showEnd(won, lines, won ? STORY.replace(/\s+/g, ' ') : '', this.score);
+        if (won) this.audio.playStory();
       }
     }
 

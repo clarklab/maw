@@ -65,6 +65,16 @@ check('story has 100+ words', story.WORDS.length > 100);
 check('story words are non-empty', story.WORDS.every((w) => w.length > 0));
 console.log(`      (${story.WORDS.length} words in the story)`);
 
+// --- narration: the rendered voice must cover the story word for word
+const fs = await import('node:fs');
+const cues = JSON.parse(fs.readFileSync(new URL('../audio/story-words.json', import.meta.url), 'utf8'));
+check('narration has a cue per story word', cues.words.length === story.WORDS.length);
+check('narration cues match story words', cues.words.every((c, i) => c.w === story.WORDS[i]));
+check('narration cues are ordered, positive spans',
+  cues.words.every((c, i) => c.e > c.s && (i === 0 || c.s >= cues.words[i - 1].s)));
+check('story.mp3 is present and substantial',
+  fs.statSync(new URL('../audio/story.mp3', import.meta.url)).size > 100_000);
+
 // --- anatomy
 const scene = new THREE.Scene();
 const mouth = buildMouth(scene);
@@ -116,9 +126,9 @@ const game = new Game({ scene, mouth, ui: stub, audio: stub });
 game.start();
 check('game starts in playing state', game.state === 'playing');
 
-// simulate ~40 seconds: alternate talking and chomping
+// simulate ~50 seconds: alternate talking and chomping
 let chomped = 0;
-for (let f = 0; f < 2400; f++) {
+for (let f = 0; f < 3000; f++) {
   // bite down rhythmically so chomps, chews and blocks all happen
   game.pressed = (f % 90) > 70;
   const params = game.update(1 / 60);
@@ -133,6 +143,57 @@ check('food existed at some point', game.foods.length > 0 || calls.includes('cru
 check('audio was exercised', calls.includes('chomp') && calls.includes('wordEscape'));
 check('no NaN positions among food', game.foods.every((fd) => Number.isFinite(fd.mesh.position.x + fd.mesh.position.y + fd.mesh.position.z)));
 geometryFinite(scene, 'scene after 40s of play');
+
+// --- lasso geometry (pure helpers from pick.js)
+const pick = await import('../js/pick.js');
+check('point-in-polygon: inside', pick.pointInPolygon(0, 0, [[-1, -1], [1, -1], [1, 1], [-1, 1]]));
+check('point-in-polygon: outside', !pick.pointInPolygon(3, 0, [[-1, -1], [1, -1], [1, 1], [-1, 1]]));
+const hull = pick.convexHull([[0, 0], [2, 0], [2, 2], [0, 2], [1, 1]]);
+check('convex hull drops interior points', hull.length === 4);
+const ring = [];
+for (let i = 0; i < 24; i++) ring.push([Math.cos(i / 24 * Math.PI * 2) * 60, Math.sin(i / 24 * Math.PI * 2) * 60]);
+const smallHull = [[-8, -8], [8, -8], [8, 8], [-8, 8]];
+check('lasso around the food catches it', pick.lassoCatches(ring, smallHull));
+check('lasso elsewhere misses', !pick.lassoCatches(ring.map(([x, y]) => [x + 300, y]), smallHull));
+const projCam = new THREE.PerspectiveCamera(60, 800 / 600, 0.1, 100);
+projCam.position.set(0, 0, 5);
+projCam.lookAt(0, 0, 0);
+projCam.updateMatrixWorld(true);
+const projMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshBasicMaterial());
+projMesh.updateMatrixWorld(true);
+const projHull = pick.projectMeshHull(projMesh, projCam, 800, 600);
+check('projected silhouette hull lands on screen centre',
+  projHull && projHull.length >= 3 && pick.pointInPolygon(400, 300, projHull));
+
+// --- stuck food: force a stick, long-press into bullet time, clear it
+// (fresh game: the blind sim above may have ended in a loss)
+game.start();
+game.pressed = false;
+for (let f = 0; f < 120; f++) game.update(1 / 60);
+game._spawnFood();
+const victim = game.foods[game.foods.length - 1];
+victim.mesh.position.set(0, 0, 3);
+game.bitesUntilStuck = 1;
+game._chomp();
+check('food sticks in the teeth when the quota hits', !!game.stuck);
+check('stuck piece sits in an upper interdental gap', game.stuck && game.stuck.mesh.position.z > 4 && game.stuck.mesh.position.z < 5.5);
+const scoreBeforePick = game.score;
+game.pressed = true;
+let entered = false;
+for (let f = 0; f < 300; f++) {
+  game.update(1 / 60);
+  if (game.bulletTime) { entered = true; break; }
+}
+check('long press with stuck food enters bullet time', entered);
+for (let f = 0; f < 180; f++) game.update(1 / 60);
+check('bullet time slows the clock', game.timeScale < 0.3);
+game.clearStuck();
+check('clearing the stuck food scores and removes it', !game.stuck && game.score > scoreBeforePick);
+for (let f = 0; f < 90; f++) game.update(1 / 60);
+check('bullet time ends once the teeth are clean', !game.bulletTime);
+game.pressed = false;
+for (let f = 0; f < 60; f++) game.update(1 / 60);
+game.bitesUntilStuck = 999; // keep the breath test below deterministic
 
 // breath mechanic: hold shut until forced open
 game.pressed = true;

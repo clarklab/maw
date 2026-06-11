@@ -52,6 +52,58 @@ await page.mouse.up();
 await page.waitForTimeout(7000);
 await page.screenshot({ path: 'test/shot-play.png' });
 
+// ----- stuck food + bullet-time lasso -----
+await page.evaluate(() => {
+  const { game } = window.__maw;
+  game._spawnFood();
+  const f = game.foods[game.foods.length - 1];
+  f.mesh.position.set(0, 0, 3);
+  game.bitesUntilStuck = 1;
+  game._chomp();
+});
+await page.waitForTimeout(700);
+await page.screenshot({ path: 'test/shot-stuck.png' });
+
+// hold the bite to drop into bullet time (poll: SwiftShader frames are slow,
+// so the long-press timer accumulates game-time over many real seconds)
+await page.mouse.move(215, 700);
+await page.mouse.down();
+try {
+  await page.waitForFunction(() => window.__maw.game.bulletTime, { timeout: 60000 });
+} catch {
+  errors.push('bullet time did not engage on long press');
+}
+await page.screenshot({ path: 'test/shot-bullet.png' });
+
+// circle the stuck piece with the "second finger" (drive the picker directly)
+await page.evaluate(() => {
+  const { game, picker, camera } = window.__maw;
+  const v = game.stuck.mesh.position.clone().project(camera);
+  const x = (v.x * 0.5 + 0.5) * innerWidth;
+  const y = (-v.y * 0.5 + 0.5) * innerHeight;
+  picker.start(x + 85, y);
+  for (let i = 1; i <= 30; i++) {
+    const a = (i / 30) * Math.PI * 2;
+    picker.move(x + Math.cos(a) * 85, y + Math.sin(a) * 85);
+  }
+});
+await page.waitForTimeout(250);
+await page.screenshot({ path: 'test/shot-lasso.png' });
+
+await page.evaluate(() => window.__maw.finishLasso());
+await page.waitForTimeout(250);
+await page.screenshot({ path: 'test/shot-snap.png' });
+try {
+  await page.waitForFunction(
+    () => !window.__maw.game.stuck && !window.__maw.game.bulletTime,
+    { timeout: 60000 }
+  );
+} catch {
+  errors.push('lasso did not clear the stuck food');
+}
+await page.screenshot({ path: 'test/shot-picked.png' });
+await page.mouse.up();
+
 // landscape too
 await page.setViewportSize({ width: 932, height: 430 });
 await page.waitForTimeout(1200);

@@ -1,6 +1,8 @@
-// MAW — procedural audio. Everything is synthesized: no samples, no files.
-// The palette: wet flesh, bone clacks, vowels trying to escape, and the
-// Adriatic somewhere past the lips.
+// MAW — audio. The chomps, gulps and ambience are synthesized; the words
+// are real: one ElevenLabs narration of the whole story (audio/story.mp3,
+// rendered by tools/render-voice.mjs) sliced per word as each one escapes.
+// If the narration files are missing, every word falls back to the old
+// formant-filtered vowels.
 
 export class AudioEngine {
   constructor() {
@@ -10,6 +12,30 @@ export class AudioEngine {
     this.ambienceGain = null;
     this.enabled = false;
     this._noiseBuf = null;
+    this.voiceBuffer = null;  // decoded narration
+    this.voiceWords = null;   // [{ w, s, e }] seconds into voiceBuffer
+    this._voiceFetch = null;
+    this._storySource = null; // full-narration playback (win screen)
+  }
+
+  // Fetch the narration early (no AudioContext needed yet); decode in init().
+  preload(base = 'audio/') {
+    this._voiceFetch = (async () => {
+      const [meta, data] = await Promise.all([
+        fetch(`${base}story-words.json`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${base}story.mp3`).then((r) => (r.ok ? r.arrayBuffer() : null)),
+      ]);
+      return meta && data ? { meta, data } : null;
+    })().catch(() => null);
+  }
+
+  async _decodeVoice() {
+    const v = this._voiceFetch ? await this._voiceFetch : null;
+    if (!v || !this.ctx) return;
+    try {
+      this.voiceBuffer = await this.ctx.decodeAudioData(v.data);
+      this.voiceWords = v.meta.words;
+    } catch { /* keep the synth fallback */ }
   }
 
   // Must be called from a user gesture.
@@ -18,6 +44,7 @@ export class AudioEngine {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
+    this._decodeVoice();
 
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.85;
@@ -30,7 +57,14 @@ export class AudioEngine {
     comp.attack.value = 0.002;
     comp.release.value = 0.18;
 
-    this.master.connect(comp);
+    // bullet-time lowpass — wide open until time slows
+    this._bulletLP = this.ctx.createBiquadFilter();
+    this._bulletLP.type = 'lowpass';
+    this._bulletLP.frequency.value = 18000;
+    this._bulletLP.Q.value = 0.4;
+
+    this.master.connect(this._bulletLP);
+    this._bulletLP.connect(comp);
     comp.connect(this.ctx.destination);
 
     this._noiseBuf = this._makeNoise(2.0);
@@ -220,11 +254,41 @@ export class AudioEngine {
     osc.start(t); osc.stop(t + 0.45);
   }
 
-  // A word makes it out: airy whoosh + a brief vowel, pitched per word.
-  wordEscape(pitch = 1) {
+  // Play one word of the narration. `through` optionally inserts a filter
+  // between the voice and the master bus. Returns false if no voice loaded.
+  _speakWord(index, { gain = 0.9, through = null } = {}) {
+    if (!this.voiceBuffer || !this.voiceWords) return false;
+    const cue = this.voiceWords[index];
+    if (!cue) return false;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const lead = 0.02, tail = 0.07;
+    const start = Math.max(0, cue.s - lead);
+    const dur = Math.min(this.voiceBuffer.duration - start, cue.e - cue.s + lead + tail);
+    if (dur <= 0) return false;
+
+    const src = ctx.createBufferSource();
+    src.buffer = this.voiceBuffer;
+    const g = ctx.createGain();
+    // micro fades so cuts from the continuous narration don't click
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.012);
+    g.gain.setValueAtTime(gain, t + Math.max(0.012, dur - 0.05));
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    if (through) { src.connect(through); through.connect(g); }
+    else src.connect(g);
+    g.connect(this.master);
+    src.start(t, start, dur + 0.02);
+    return true;
+  }
+
+  // A word makes it out: airy whoosh + the real spoken word (or, if the
+  // narration isn't available, a brief synthesized vowel pitched per word).
+  wordEscape(pitch = 1, wordIndex = -1) {
     if (!this.enabled) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
+    const spoke = this._speakWord(wordIndex);
 
     // breath
     const n = this._noiseSource();
@@ -235,10 +299,11 @@ export class AudioEngine {
     bf.Q.value = 0.8;
     const bg = ctx.createGain();
     bg.gain.setValueAtTime(0.001, t);
-    bg.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
+    bg.gain.exponentialRampToValueAtTime(spoke ? 0.06 : 0.12, t + 0.06);
     bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     n.connect(bf); bf.connect(bg); bg.connect(this.master);
     n.start(t); n.stop(t + 0.35);
+    if (spoke) return;
 
     // vowel — glottal source through two formant filters
     const vowels = [
@@ -270,11 +335,17 @@ export class AudioEngine {
     src.start(t); src.stop(t + 0.4);
   }
 
-  // A word hits closed lips: pressed, nasal "mmph".
-  muffled() {
+  // A word hits closed lips: pressed, nasal "mmph" — with the real word
+  // trapped behind it, lowpassed into the cheeks.
+  muffled(wordIndex = -1) {
     if (!this.enabled) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
+    const trap = ctx.createBiquadFilter();
+    trap.type = 'lowpass';
+    trap.frequency.value = 320;
+    trap.Q.value = 2;
+    this._speakWord(wordIndex, { gain: 0.7, through: trap });
     const src = ctx.createOscillator();
     src.type = 'sawtooth';
     src.frequency.setValueAtTime(130, t);
@@ -339,6 +410,106 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
     n.connect(f); f.connect(g); g.connect(this.master);
     n.start(t); n.stop(t + 0.55);
+  }
+
+  // The whole story, told properly — start to finish (win screen victory lap).
+  playStory() {
+    if (!this.enabled || !this.voiceBuffer) return;
+    this.stopStory();
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.voiceBuffer;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.6, t + 0.4);
+    src.connect(g);
+    g.connect(this.master);
+    src.start(t + 0.6);
+    this._storySource = { src, g };
+  }
+
+  stopStory() {
+    if (!this._storySource) return;
+    const { src, g } = this._storySource;
+    this._storySource = null;
+    const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setTargetAtTime(0, t, 0.08);
+    try { src.stop(t + 0.4); } catch { /* already ended */ }
+  }
+
+  // Food wedges itself between two teeth: a rubbery rising squeak.
+  stuckSqueak() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(700, t);
+    osc.frequency.exponentialRampToValueAtTime(1900, t + 0.16);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1400;
+    f.Q.value = 4;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(f); f.connect(g); g.connect(this.master);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+
+  // Time dilates while you concentrate on the wedged piece: the whole mix
+  // sinks underwater (and surfaces again on the way out).
+  bulletTime(on) {
+    if (!this.enabled || !this._bulletLP) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    this._bulletLP.frequency.setTargetAtTime(on ? 480 : 18000, t, on ? 0.15 : 0.08);
+
+    // a soft whoosh marks the threshold
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.1;
+    f.frequency.setValueAtTime(on ? 2600 : 300, t);
+    f.frequency.exponentialRampToValueAtTime(on ? 300 : 2600, t + 0.35);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    n.connect(f); f.connect(g); g.connect(this.master);
+    n.start(t); n.stop(t + 0.45);
+  }
+
+  // The stuck piece pops free: bright ascending sparkle + a wet pop.
+  pickSuccess() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    [880, 1175, 1760].forEach((freq, i) => {
+      const tt = t + i * 0.07;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, tt);
+      g.gain.linearRampToValueAtTime(0.16, tt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.35);
+      o.connect(g); g.connect(this.master);
+      o.start(tt); o.stop(tt + 0.4);
+    });
+    // the pop of the piece coming loose
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(520, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.12);
   }
 
   // Story chapter chime — a warm distant bell (church bells over the harbor).
