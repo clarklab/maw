@@ -61,10 +61,17 @@ from math and Canvas2D at load time, on top of [three.js](https://threejs.org)
   hit test against the morsel's projected position, and a morph that snaps the
   hand-drawn loop onto the convex hull of the morsel's screen-space silhouette
   before it poofs.
-- `js/audio.js` — fully synthesized WebAudio: wet chomps, crunches, gulps,
-  formant-filtered vowels for escaping words, muffled "mmph"s, distant plate
-  clatter, church bells, waves heard through the aperture (low-passed by the
-  jaw), and a heartbeat.
+- `js/audio.js` — synthesized WebAudio: wet chomps, crunches, gulps, muffled
+  "mmph"s, distant plate clatter, church bells, waves heard through the
+  aperture (low-passed by the jaw), and a heartbeat.
+- `js/voice.js` + `assets/voice/` — **real narration**. Every word of the
+  story is a pre-rendered ElevenLabs clip (a warm, worldly storyteller in her
+  sixties), conditioned on the surrounding text so consecutive escapes flow
+  like one telling; words stretch when time dilates, and the full story plays
+  over the win screen. Falls back to synthesized formant vowels if the clips
+  haven't loaded. Re-render with
+  `ELEVENLABS_API_KEY=… npm run voice` — the key lives only in your
+  environment, never in the repo.
 - Lighting: real-time sun shadows through the lip aperture, PMREM environment
   reflections on every wet surface, pulsing transilluminated cheeks, adaptive
   exposure as the jaw opens and closes, ACES tone mapping + bloom.

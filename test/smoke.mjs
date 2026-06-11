@@ -188,5 +188,26 @@ check('re-stuck food re-enters bullet time', game.bulletTime === true);
 game.pointerUp();
 check('lifting the finger cancels bullet time', game.bulletTime === false);
 
+// --- voice assets, if rendered: the manifest must match the story exactly
+try {
+  const { readFile } = await import('fs/promises');
+  const manifest = JSON.parse(
+    await readFile(new URL('../assets/voice/manifest.json', import.meta.url), 'utf8')
+  );
+  check('voice manifest matches story words',
+    manifest.words.length === story.WORDS.length &&
+    manifest.words.every((w, i) => w === story.WORDS[i]));
+  const { access } = await import('fs/promises');
+  let missing = 0;
+  for (let i = 0; i < story.WORDS.length; i++) {
+    await access(new URL(`../assets/voice/words/${String(i).padStart(3, '0')}.mp3`, import.meta.url))
+      .catch(() => missing++);
+  }
+  await access(new URL('../assets/voice/story.mp3', import.meta.url)).catch(() => missing++);
+  check('all narration clips present', missing === 0);
+} catch {
+  console.log('      (no voice assets rendered — skipping narration checks)');
+}
+
 console.log(failures === 0 ? '\nALL OK' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

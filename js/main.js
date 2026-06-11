@@ -15,6 +15,7 @@ import { buildWorld } from './world.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
+import { VoiceEngine } from './voice.js';
 import { Lasso } from './lasso.js';
 
 // ------------------------------------------------------------------- setup
@@ -143,6 +144,9 @@ scene.add(throatGlow);
 
 const ui = new UI();
 const audio = new AudioEngine();
+const voice = new VoiceEngine();
+voice.preload(); // start fetching narration clips behind the title screen
+audio.attachVoice(voice);
 const mouth = buildMouth(scene);
 const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });
@@ -330,7 +334,7 @@ function frame() {
 }
 
 // debug / test handle
-window.MAW = { game, mouth, lasso, camera };
+window.MAW = { game, mouth, lasso, camera, audio, voice };
 
 ui.ready();
 frame();

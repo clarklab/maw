@@ -10,6 +10,13 @@ export class AudioEngine {
     this.ambienceGain = null;
     this.enabled = false;
     this._noiseBuf = null;
+    this.voice = null;        // optional VoiceEngine with real narration
+  }
+
+  // Real narration clips, if rendered. Falls back to synth when absent.
+  attachVoice(voice) {
+    this.voice = voice;
+    if (this.ctx) voice.bind(this);
   }
 
   // Must be called from a user gesture.
@@ -36,6 +43,7 @@ export class AudioEngine {
     this._noiseBuf = this._makeNoise(2.0);
     this._startAmbience();
     this._startHeartbeat();
+    if (this.voice) this.voice.bind(this);
     this.enabled = true;
   }
 
@@ -220,8 +228,9 @@ export class AudioEngine {
     osc.start(t); osc.stop(t + 0.45);
   }
 
-  // A word makes it out: airy whoosh + a brief vowel, pitched per word.
-  wordEscape(pitch = 1) {
+  // A word makes it out: airy whoosh + the narrator actually saying it.
+  // Falls back to a synthesized vowel when the clip isn't available.
+  wordEscape(pitch = 1, wordIndex = -1, rate = 1) {
     if (!this.enabled) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
@@ -239,6 +248,9 @@ export class AudioEngine {
     bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     n.connect(bf); bf.connect(bg); bg.connect(this.master);
     n.start(t); n.stop(t + 0.35);
+
+    // the real word, if the narration clip is here
+    if (this.voice && wordIndex >= 0 && this.voice.playWord(wordIndex, rate)) return;
 
     // vowel — glottal source through two formant filters
     const vowels = [
@@ -268,6 +280,15 @@ export class AudioEngine {
     make(f1, 9, 1.0);
     make(f2, 11, 0.55);
     src.start(t); src.stop(t + 0.4);
+  }
+
+  // The whole telling, read by the narrator (win screen).
+  playStory() {
+    if (this.enabled && this.voice) this.voice.playStory();
+  }
+
+  stopStory() {
+    if (this.voice) this.voice.stopStory();
   }
 
   // A word hits closed lips: pressed, nasal "mmph".

@@ -173,6 +173,7 @@ export class Game {
     this.nextStuckAt = 5 + ((Math.random() * 6) | 0);
     this.ui.bulletTime(false);
     this.ui.stuckTip(null);
+    this.audio.stopStory();
     this.ui.resetStory();
     this.ui.setScore(0);
     this.ui.setManners(3);
@@ -268,7 +269,8 @@ export class Game {
   }
 
   _wordEscaped(w) {
-    this.audio.wordEscape(1 - this.difficulty * 0.25);
+    // the narrator speaks the word; it stretches when time is dilated
+    this.audio.wordEscape(1 - this.difficulty * 0.25, this.wordIndex, clamp(this.timeScale, 0.5, 1));
     this.ui.appendWord(w.text);
     this.score += 10 * this.streak;
     this.streak = Math.min(this.streak + 1, 5);
@@ -720,6 +722,7 @@ export class Game {
         this._exitBulletTime();
         this.ui.stuckTip(null);
         this.ui.showEnd(won, lines, won ? STORY.replace(/\s+/g, ' ') : '', this.score);
+        if (won) this.audio.playStory(); // the table hears the whole telling
       }
     }
 

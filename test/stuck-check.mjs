@@ -9,7 +9,7 @@ import { extname, join } from 'path';
 const root = new URL('..', import.meta.url).pathname;
 const types = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.json': 'application/json',
+  '.png': 'image/png', '.json': 'application/json', '.mp3': 'audio/mpeg',
 };
 const server = createServer(async (req, res) => {
   const path = req.url === '/' ? '/index.html' : req.url.split('?')[0];
