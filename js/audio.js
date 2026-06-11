@@ -57,7 +57,14 @@ export class AudioEngine {
     comp.attack.value = 0.002;
     comp.release.value = 0.18;
 
-    this.master.connect(comp);
+    // bullet-time lowpass — wide open until time slows
+    this._bulletLP = this.ctx.createBiquadFilter();
+    this._bulletLP.type = 'lowpass';
+    this._bulletLP.frequency.value = 18000;
+    this._bulletLP.Q.value = 0.4;
+
+    this.master.connect(this._bulletLP);
+    this._bulletLP.connect(comp);
     comp.connect(this.ctx.destination);
 
     this._noiseBuf = this._makeNoise(2.0);
@@ -430,6 +437,79 @@ export class AudioEngine {
     g.gain.cancelScheduledValues(t);
     g.gain.setTargetAtTime(0, t, 0.08);
     try { src.stop(t + 0.4); } catch { /* already ended */ }
+  }
+
+  // Food wedges itself between two teeth: a rubbery rising squeak.
+  stuckSqueak() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(700, t);
+    osc.frequency.exponentialRampToValueAtTime(1900, t + 0.16);
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1400;
+    f.Q.value = 4;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(f); f.connect(g); g.connect(this.master);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+
+  // Time dilates while you concentrate on the wedged piece: the whole mix
+  // sinks underwater (and surfaces again on the way out).
+  bulletTime(on) {
+    if (!this.enabled || !this._bulletLP) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    this._bulletLP.frequency.setTargetAtTime(on ? 480 : 18000, t, on ? 0.15 : 0.08);
+
+    // a soft whoosh marks the threshold
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.1;
+    f.frequency.setValueAtTime(on ? 2600 : 300, t);
+    f.frequency.exponentialRampToValueAtTime(on ? 300 : 2600, t + 0.35);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    n.connect(f); f.connect(g); g.connect(this.master);
+    n.start(t); n.stop(t + 0.45);
+  }
+
+  // The stuck piece pops free: bright ascending sparkle + a wet pop.
+  pickSuccess() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    [880, 1175, 1760].forEach((freq, i) => {
+      const tt = t + i * 0.07;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, tt);
+      g.gain.linearRampToValueAtTime(0.16, tt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.35);
+      o.connect(g); g.connect(this.master);
+      o.start(tt); o.stop(tt + 0.4);
+    });
+    // the pop of the piece coming loose
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(520, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.12);
   }
 
   // Story chapter chime — a warm distant bell (church bells over the harbor).

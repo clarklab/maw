@@ -31,6 +31,10 @@ npm run serve     # python3 -m http.server 8000
 - Mistime it: a word hits closed lips — *MMMPH* — and your streak dies.
 - Let three pieces of food past your lips and your reputation is finished.
 - Hold the mouth shut too long and you'll need to breathe.
+- Bite enough times and something gets **stuck in your teeth**. Keep holding
+  your bite to drop into bullet time, then circle the wedged piece with a
+  second finger — a glowing pencil stroke that snaps to the food's exact
+  silhouette before it poofs free (+40).
 
 ## How it's built
 
@@ -51,7 +55,12 @@ from math and Canvas2D at load time, on top of [three.js](https://threejs.org)
   boat, and the dinner table your food lands on.
 - `js/game.js` — jaw spring physics, chomp detection, food physics against
   the tongue/cheeks/lips, the word flight path, scoring, slow-motion crises,
-  and the suffocation mechanic.
+  the suffocation mechanic, and food that wedges itself into the upper
+  interdental gaps every 5–10 bites.
+- `js/pick.js` — the bullet-time lasso: a Canvas2D overlay where a second
+  finger draws a glowing pencil stroke; ray-cast point-in-polygon decides if
+  the lasso caught the piece, and the projected convex hull of the food's
+  3D geometry gives the snapped highlight its exact silhouette.
 - `js/audio.js` — WebAudio: wet chomps, crunches, gulps, muffled "mmph"s,
   distant plate clatter, church bells, waves heard through the aperture
   (low-passed by the jaw), and a heartbeat — all synthesized. The words are

@@ -15,6 +15,7 @@ import { buildWorld } from './world.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
+import { LassoPicker, projectMeshHull, lassoCatches } from './pick.js';
 
 // ------------------------------------------------------------------- setup
 
@@ -143,6 +144,7 @@ scene.add(throatGlow);
 const ui = new UI();
 const audio = new AudioEngine();
 audio.preload(); // start fetching the narration before the first tap
+const picker = new LassoPicker(document.getElementById('lasso'));
 const mouth = buildMouth(scene);
 const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });
@@ -159,15 +161,57 @@ composer.addPass(new OutputPass());
 
 // ------------------------------------------------------------------- input
 
+// One finger holds the bite. In bullet time a second pointer becomes the
+// glowing pencil that circles the food stuck in your teeth.
+let drawId = null;
+let biteId = null;
+
+function finishLasso() {
+  const stroke = picker.end();
+  const stuck = game.stuck;
+  if (!stroke || !stuck || !game.bulletTime) { picker.cancel(); return; }
+  const getHull = () =>
+    projectMeshHull(stuck.mesh, camera, window.innerWidth, window.innerHeight);
+  const hull = getHull();
+  if (hull && lassoCatches(stroke, hull)) {
+    // snap the loose circle onto the exact silhouette, then poof
+    picker.snap(getHull, () => game.clearStuck());
+  } else {
+    picker.fail();
+  }
+}
+
 function press(e) {
   if (game.state !== 'playing') return;
   e.preventDefault();
-  game.pointerDown();
   audio.resume();
+  if (game.bulletTime && game.pressed && drawId === null && picker.state === 'idle') {
+    drawId = e.pointerId;
+    picker.start(e.clientX, e.clientY);
+    return;
+  }
+  if (biteId === null) {
+    biteId = e.pointerId;
+    game.pointerDown();
+  }
 }
-function release() { game.pointerUp(); }
+function move(e) {
+  if (e.pointerId === drawId) picker.move(e.clientX, e.clientY);
+}
+function release(e) {
+  if (e.pointerId === drawId) {
+    drawId = null;
+    finishLasso();
+    return;
+  }
+  if (e.pointerId === biteId) {
+    biteId = null;
+    game.pointerUp();
+  }
+}
 
 window.addEventListener('pointerdown', press, { passive: false });
+window.addEventListener('pointermove', move);
 window.addEventListener('pointerup', release);
 window.addEventListener('pointercancel', release);
 window.addEventListener('keydown', (e) => {
@@ -194,6 +238,7 @@ window.addEventListener('resize', () => {
   fitCamera();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  picker.resize();
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -212,7 +257,8 @@ const camLook = MOUTH.cameraLook.clone();
 
 function frame() {
   requestAnimationFrame(frame);
-  let dt = Math.min(clock.getDelta(), 0.05);
+  const realDt = Math.min(clock.getDelta(), 0.05);
+  let dt = realDt;
 
   // gameplay first (it returns the jaw + articulation state)
   const params = game.update(dt);
@@ -227,6 +273,11 @@ function frame() {
 
   mouth.update(dt, params);
   world.update(dt, camera.position);
+
+  // lasso overlay runs on real time (it IS the bullet-time interface)
+  if (!game.bulletTime && drawId !== null) { drawId = null; picker.cancel(); }
+  picker.setBulletTime(game.bulletTime);
+  picker.update(realDt);
 
   const open01 = params.jawAngle / MOUTH.maxJawAngle;
 
@@ -261,6 +312,9 @@ function frame() {
 
   composer.render();
 }
+
+// exposed for the headless visual harness (test/shot.mjs)
+window.__maw = { game, picker, camera, finishLasso };
 
 ui.ready();
 frame();
