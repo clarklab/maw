@@ -1,6 +1,8 @@
-// MAW — procedural audio. Everything is synthesized: no samples, no files.
-// The palette: wet flesh, bone clacks, vowels trying to escape, and the
-// Adriatic somewhere past the lips.
+// MAW — audio. The chomps, gulps and ambience are synthesized; the words
+// are real: one ElevenLabs narration of the whole story (audio/story.mp3,
+// rendered by tools/render-voice.mjs) sliced per word as each one escapes.
+// If the narration files are missing, every word falls back to the old
+// formant-filtered vowels.
 
 export class AudioEngine {
   constructor() {
@@ -10,6 +12,30 @@ export class AudioEngine {
     this.ambienceGain = null;
     this.enabled = false;
     this._noiseBuf = null;
+    this.voiceBuffer = null;  // decoded narration
+    this.voiceWords = null;   // [{ w, s, e }] seconds into voiceBuffer
+    this._voiceFetch = null;
+    this._storySource = null; // full-narration playback (win screen)
+  }
+
+  // Fetch the narration early (no AudioContext needed yet); decode in init().
+  preload(base = 'audio/') {
+    this._voiceFetch = (async () => {
+      const [meta, data] = await Promise.all([
+        fetch(`${base}story-words.json`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${base}story.mp3`).then((r) => (r.ok ? r.arrayBuffer() : null)),
+      ]);
+      return meta && data ? { meta, data } : null;
+    })().catch(() => null);
+  }
+
+  async _decodeVoice() {
+    const v = this._voiceFetch ? await this._voiceFetch : null;
+    if (!v || !this.ctx) return;
+    try {
+      this.voiceBuffer = await this.ctx.decodeAudioData(v.data);
+      this.voiceWords = v.meta.words;
+    } catch { /* keep the synth fallback */ }
   }
 
   // Must be called from a user gesture.
@@ -18,6 +44,7 @@ export class AudioEngine {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
+    this._decodeVoice();
 
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.85;
@@ -220,11 +247,41 @@ export class AudioEngine {
     osc.start(t); osc.stop(t + 0.45);
   }
 
-  // A word makes it out: airy whoosh + a brief vowel, pitched per word.
-  wordEscape(pitch = 1) {
+  // Play one word of the narration. `through` optionally inserts a filter
+  // between the voice and the master bus. Returns false if no voice loaded.
+  _speakWord(index, { gain = 0.9, through = null } = {}) {
+    if (!this.voiceBuffer || !this.voiceWords) return false;
+    const cue = this.voiceWords[index];
+    if (!cue) return false;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const lead = 0.02, tail = 0.07;
+    const start = Math.max(0, cue.s - lead);
+    const dur = Math.min(this.voiceBuffer.duration - start, cue.e - cue.s + lead + tail);
+    if (dur <= 0) return false;
+
+    const src = ctx.createBufferSource();
+    src.buffer = this.voiceBuffer;
+    const g = ctx.createGain();
+    // micro fades so cuts from the continuous narration don't click
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.012);
+    g.gain.setValueAtTime(gain, t + Math.max(0.012, dur - 0.05));
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    if (through) { src.connect(through); through.connect(g); }
+    else src.connect(g);
+    g.connect(this.master);
+    src.start(t, start, dur + 0.02);
+    return true;
+  }
+
+  // A word makes it out: airy whoosh + the real spoken word (or, if the
+  // narration isn't available, a brief synthesized vowel pitched per word).
+  wordEscape(pitch = 1, wordIndex = -1) {
     if (!this.enabled) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
+    const spoke = this._speakWord(wordIndex);
 
     // breath
     const n = this._noiseSource();
@@ -235,10 +292,11 @@ export class AudioEngine {
     bf.Q.value = 0.8;
     const bg = ctx.createGain();
     bg.gain.setValueAtTime(0.001, t);
-    bg.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
+    bg.gain.exponentialRampToValueAtTime(spoke ? 0.06 : 0.12, t + 0.06);
     bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     n.connect(bf); bf.connect(bg); bg.connect(this.master);
     n.start(t); n.stop(t + 0.35);
+    if (spoke) return;
 
     // vowel — glottal source through two formant filters
     const vowels = [
@@ -270,11 +328,17 @@ export class AudioEngine {
     src.start(t); src.stop(t + 0.4);
   }
 
-  // A word hits closed lips: pressed, nasal "mmph".
-  muffled() {
+  // A word hits closed lips: pressed, nasal "mmph" — with the real word
+  // trapped behind it, lowpassed into the cheeks.
+  muffled(wordIndex = -1) {
     if (!this.enabled) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
+    const trap = ctx.createBiquadFilter();
+    trap.type = 'lowpass';
+    trap.frequency.value = 320;
+    trap.Q.value = 2;
+    this._speakWord(wordIndex, { gain: 0.7, through: trap });
     const src = ctx.createOscillator();
     src.type = 'sawtooth';
     src.frequency.setValueAtTime(130, t);
@@ -339,6 +403,33 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
     n.connect(f); f.connect(g); g.connect(this.master);
     n.start(t); n.stop(t + 0.55);
+  }
+
+  // The whole story, told properly — start to finish (win screen victory lap).
+  playStory() {
+    if (!this.enabled || !this.voiceBuffer) return;
+    this.stopStory();
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.voiceBuffer;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.6, t + 0.4);
+    src.connect(g);
+    g.connect(this.master);
+    src.start(t + 0.6);
+    this._storySource = { src, g };
+  }
+
+  stopStory() {
+    if (!this._storySource) return;
+    const { src, g } = this._storySource;
+    this._storySource = null;
+    const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setTargetAtTime(0, t, 0.08);
+    try { src.stop(t + 0.4); } catch { /* already ended */ }
   }
 
   // Story chapter chime — a warm distant bell (church bells over the harbor).

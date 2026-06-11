@@ -142,6 +142,7 @@ scene.add(throatGlow);
 
 const ui = new UI();
 const audio = new AudioEngine();
+audio.preload(); // start fetching the narration before the first tap
 const mouth = buildMouth(scene);
 const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });

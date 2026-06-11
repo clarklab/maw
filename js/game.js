@@ -146,6 +146,7 @@ export class Game {
     this.biteTimer = 1.2;
     this.endTimer = -1;
     this.activeWord = null;
+    this.audio.stopStory();
     for (const f of this.foods) this.scene.remove(f.mesh);
     this.foods = [];
     this.ui.resetStory();
@@ -234,7 +235,7 @@ export class Game {
         // MUFFLED
         w.muffled = true;
         this.streak = 1;
-        this.audio.muffled();
+        this.audio.muffled(this.wordIndex);
         this.mouth.kickUvula(1.6, 0.4);
         this.ui.callout('MMMPH', true);
         this.shake = Math.max(this.shake, 0.35);
@@ -243,7 +244,7 @@ export class Game {
   }
 
   _wordEscaped(w) {
-    this.audio.wordEscape(1 - this.difficulty * 0.25);
+    this.audio.wordEscape(1 - this.difficulty * 0.25, this.wordIndex);
     this.ui.appendWord(w.text);
     this.score += 10 * this.streak;
     this.streak = Math.min(this.streak + 1, 5);
@@ -598,6 +599,7 @@ export class Game {
           ? WIN_LINES[(Math.random() * WIN_LINES.length) | 0]
           : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
         this.ui.showEnd(won, lines, won ? STORY.replace(/\s+/g, ' ') : '', this.score);
+        if (won) this.audio.playStory();
       }
     }
 

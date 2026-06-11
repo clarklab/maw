@@ -65,6 +65,16 @@ check('story has 100+ words', story.WORDS.length > 100);
 check('story words are non-empty', story.WORDS.every((w) => w.length > 0));
 console.log(`      (${story.WORDS.length} words in the story)`);
 
+// --- narration: the rendered voice must cover the story word for word
+const fs = await import('node:fs');
+const cues = JSON.parse(fs.readFileSync(new URL('../audio/story-words.json', import.meta.url), 'utf8'));
+check('narration has a cue per story word', cues.words.length === story.WORDS.length);
+check('narration cues match story words', cues.words.every((c, i) => c.w === story.WORDS[i]));
+check('narration cues are ordered, positive spans',
+  cues.words.every((c, i) => c.e > c.s && (i === 0 || c.s >= cues.words[i - 1].s)));
+check('story.mp3 is present and substantial',
+  fs.statSync(new URL('../audio/story.mp3', import.meta.url)).size > 100_000);
+
 // --- anatomy
 const scene = new THREE.Scene();
 const mouth = buildMouth(scene);
