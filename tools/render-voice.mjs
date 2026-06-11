@@ -1,17 +1,19 @@
 // MAW — render the story narration with ElevenLabs.
 //
-// Renders every word token of the story as its own clip (conditioned on the
-// surrounding text so the prosody flows like one telling), plus the whole
-// story as a single track, into assets/voice/. Idempotent: existing files
-// are skipped, so a partial run can simply be re-run.
+// Renders every unique word of the story as its own CLEAN, isolated clip
+// (no sentence-context conditioning — conditioned words come out sounding
+// like cut-off mid-sentence fragments), plus the whole story as a single
+// track, into assets/voice/. Duplicate words share one file via the
+// manifest's files[] mapping. Idempotent: existing files are skipped, so a
+// partial run can simply be re-run. Pass --fresh to discard old word clips.
 //
 // The API key is NEVER stored in the repo. Run with:
-//   ELEVENLABS_API_KEY=sk_… node tools/render-voice.mjs
+//   ELEVENLABS_API_KEY=sk_… node tools/render-voice.mjs [--fresh]
 //
 // Optional env:
 //   ELEVENLABS_VOICE_ID  (default: Debbie Irwin — warm, worldly, mature)
 
-import { mkdir, writeFile, access, readFile } from 'fs/promises';
+import { mkdir, writeFile, access, rm } from 'fs/promises';
 import { join } from 'path';
 import { WORDS, STORY } from '../js/story.js';
 
@@ -27,19 +29,18 @@ const MODEL = 'eleven_multilingual_v2';
 const WORD_FORMAT = 'mp3_44100_64';   // single words: small files
 const STORY_FORMAT = 'mp3_44100_128'; // the full telling: full quality
 const OUT = new URL('../assets/voice/', import.meta.url).pathname;
-const SETTINGS = { stability: 0.45, similarity_boost: 0.75 };
+// a touch more stability for single words — consistent, clean reads
+const WORD_SETTINGS = { stability: 0.6, similarity_boost: 0.75 };
+const STORY_SETTINGS = { stability: 0.45, similarity_boost: 0.75 };
 
 const exists = (p) => access(p).then(() => true, () => false);
 
-async function tts(text, { format, previousText, nextText }) {
-  const body = {
-    text,
-    model_id: MODEL,
-    voice_settings: SETTINGS,
-  };
-  if (previousText) body.previous_text = previousText;
-  if (nextText) body.next_text = nextText;
+// What the narrator actually says for a token: the bare word, no clinging
+// punctuation (keeps internal apostrophes/hyphens, e.g. "fishermen's").
+const spoken = (token) => token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
 
+async function tts(text, format, settings) {
+  const body = { text, model_id: MODEL, voice_settings: settings };
   for (let attempt = 0; attempt < 5; attempt++) {
     const res = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=${format}`,
@@ -62,24 +63,34 @@ async function tts(text, { format, previousText, nextText }) {
   throw new Error('TTS: too many retries');
 }
 
+if (process.argv.includes('--fresh')) {
+  await rm(join(OUT, 'words'), { recursive: true, force: true });
+}
 await mkdir(join(OUT, 'words'), { recursive: true });
 
-// ---- every word, conditioned on its neighbourhood so the line flows
-const CONTEXT = 30; // words of context either side
+// ---- every unique word, isolated and clean; duplicates share a file
+const fileFor = new Map(); // spoken text (lowercased) → filename
+const files = [];          // per token index → filename
 let rendered = 0, skipped = 0;
 for (let i = 0; i < WORDS.length; i++) {
-  const file = join(OUT, 'words', `${String(i).padStart(3, '0')}.mp3`);
-  if (await exists(file)) { skipped++; continue; }
-  const audio = await tts(WORDS[i], {
-    format: WORD_FORMAT,
-    previousText: WORDS.slice(Math.max(0, i - CONTEXT), i).join(' ') || undefined,
-    nextText: WORDS.slice(i + 1, i + 1 + CONTEXT).join(' ') || undefined,
-  });
-  await writeFile(file, audio);
-  rendered++;
-  process.stdout.write(`\r  words: ${i + 1}/${WORDS.length} (${WORDS[i]})${' '.repeat(20)}`);
+  const say = spoken(WORDS[i]);
+  const dedupeKey = say.toLowerCase();
+  let name = fileFor.get(dedupeKey);
+  if (!name) {
+    name = `${String(i).padStart(3, '0')}.mp3`; // named for first occurrence
+    fileFor.set(dedupeKey, name);
+    const file = join(OUT, 'words', name);
+    if (await exists(file)) {
+      skipped++;
+    } else {
+      await writeFile(file, await tts(say, WORD_FORMAT, WORD_SETTINGS));
+      rendered++;
+      process.stdout.write(`\r  words: ${i + 1}/${WORDS.length} (${say})${' '.repeat(20)}`);
+    }
+  }
+  files.push(name);
 }
-console.log(`\n  words done — ${rendered} rendered, ${skipped} already present`);
+console.log(`\n  words done — ${fileFor.size} unique clips (${rendered} rendered, ${skipped} already present) for ${WORDS.length} tokens`);
 
 // ---- the whole story as one telling
 const storyFile = join(OUT, 'story.mp3');
@@ -87,7 +98,7 @@ if (await exists(storyFile)) {
   console.log('  story.mp3 already present');
 } else {
   console.log('  rendering full story…');
-  await writeFile(storyFile, await tts(STORY.replace(/\s+/g, ' '), { format: STORY_FORMAT }));
+  await writeFile(storyFile, await tts(STORY.replace(/\s+/g, ' '), STORY_FORMAT, STORY_SETTINGS));
   console.log('  story.mp3 done');
 }
 
@@ -96,6 +107,7 @@ await writeFile(join(OUT, 'manifest.json'), JSON.stringify({
   voice: VOICE_NAME,
   model: MODEL,
   words: WORDS,
+  files,
   story: 'story.mp3',
 }, null, 1));
 console.log(`manifest written — ${WORDS.length} words, voice: ${VOICE_NAME}`);

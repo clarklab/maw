@@ -198,10 +198,12 @@ try {
   check('voice manifest matches story words',
     manifest.words.length === story.WORDS.length &&
     manifest.words.every((w, i) => w === story.WORDS[i]));
+  check('voice manifest maps every word to a clip',
+    Array.isArray(manifest.files) && manifest.files.length === story.WORDS.length);
   const { access } = await import('fs/promises');
   let missing = 0;
-  for (let i = 0; i < story.WORDS.length; i++) {
-    await access(new URL(`../assets/voice/words/${String(i).padStart(3, '0')}.mp3`, import.meta.url))
+  for (const name of new Set(manifest.files)) {
+    await access(new URL(`../assets/voice/words/${name}`, import.meta.url))
       .catch(() => missing++);
   }
   await access(new URL('../assets/voice/story.mp3', import.meta.url)).catch(() => missing++);
