@@ -24,8 +24,8 @@ export const MOUTH = {
   upperLipEdgeY: 0.12,
   lipHalfWidth: 2.3,
   throat: new THREE.Vector3(0, -0.25, -1.3),   // where swallowed things go
-  cameraPos: new THREE.Vector3(0, 0.62, -1.66),
-  cameraLook: new THREE.Vector3(0, -0.06, 6.0),
+  cameraPos: new THREE.Vector3(0, 0.72, -1.52),
+  cameraLook: new THREE.Vector3(0, -0.2, 6.0),
 };
 
 const UPPER_ARCH = { rx: 2.75, rz: 4.35, zOff: 0.95 };
