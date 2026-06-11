@@ -15,6 +15,7 @@ import { buildWorld } from './world.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
 import { AudioEngine } from './audio.js';
+import { Lasso } from './lasso.js';
 
 // ------------------------------------------------------------------- setup
 
@@ -145,6 +146,7 @@ const audio = new AudioEngine();
 const mouth = buildMouth(scene);
 const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });
+const lasso = new Lasso(document.getElementById('lasso'));
 
 // ------------------------------------------------------------------ postfx
 
@@ -158,27 +160,82 @@ composer.addPass(new OutputPass());
 
 // ------------------------------------------------------------------- input
 
-function press(e) {
+// One finger bites. When something's stuck in the teeth, holding slips you
+// into bullet time and a SECOND finger becomes the glowing pencil.
+
+let primaryId = null;   // the biting finger
+let lassoId = null;     // the drawing finger (bullet time only)
+let spaceHeld = false;  // desktop: space bites, the mouse draws
+
+window.addEventListener('pointerdown', (e) => {
   if (game.state !== 'playing') return;
   e.preventDefault();
-  game.pointerDown();
   audio.resume();
-}
-function release() { game.pointerUp(); }
+  if (game.bulletTime && lassoId === null && e.pointerId !== primaryId) {
+    lassoId = e.pointerId;
+    lasso.start(e.clientX, e.clientY);
+    return;
+  }
+  if (primaryId === null) {
+    primaryId = e.pointerId;
+    game.pointerDown();
+  }
+}, { passive: false });
 
-window.addEventListener('pointerdown', press, { passive: false });
-window.addEventListener('pointerup', release);
-window.addEventListener('pointercancel', release);
+window.addEventListener('pointermove', (e) => {
+  if (e.pointerId === lassoId) lasso.add(e.clientX, e.clientY);
+});
+
+function finishLasso(pts) {
+  if (!pts || !game.bulletTime || !game.stuck) {
+    lasso.fizzle(pts);
+    return;
+  }
+  const hull = lasso.hullOf(game.stuck.mesh, camera);
+  if (lasso.encloses(pts, game.stuck.mesh, camera) &&
+      lasso.snapTo(pts, hull, () => game.clearStuck())) {
+    game.highlightStuck();
+  } else {
+    lasso.fizzle(pts);
+    audio.fizzle();
+  }
+}
+
+function liftPointer(e, cancelled) {
+  if (e.pointerId === lassoId) {
+    lassoId = null;
+    if (cancelled) lasso.cancel();
+    else finishLasso(lasso.end());
+    return;
+  }
+  if (e.pointerId === primaryId) {
+    primaryId = null;
+    if (!spaceHeld) game.pointerUp();
+  }
+}
+window.addEventListener('pointerup', (e) => liftPointer(e, false));
+window.addEventListener('pointercancel', (e) => liftPointer(e, true));
+// long-pressing is a core input — never show a context menu
+window.addEventListener('contextmenu', (e) => e.preventDefault());
+
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && !e.repeat) { game.pointerDown(); audio.resume(); }
+  if (e.code === 'Space' && !e.repeat) {
+    spaceHeld = true;
+    game.pointerDown();
+    audio.resume();
+  }
 });
 window.addEventListener('keyup', (e) => {
-  if (e.code === 'Space') game.pointerUp();
+  if (e.code === 'Space') {
+    spaceHeld = false;
+    if (primaryId === null) game.pointerUp();
+  }
 });
 
 document.getElementById('start-btn').addEventListener('click', () => {
   audio.init();
   audio.resume();
+  lasso.reset();
   ui.hideTitle();
   setTimeout(() => game.start(), 350);
 });
@@ -186,6 +243,7 @@ document.getElementById('start-btn').addEventListener('click', () => {
 document.getElementById('retry-btn').addEventListener('click', () => {
   ui.hideEnd();
   audio.resume();
+  lasso.reset();
   game.start();
 });
 
@@ -193,6 +251,7 @@ window.addEventListener('resize', () => {
   fitCamera();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  lasso.resize();
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -212,6 +271,7 @@ const camLook = MOUTH.cameraLook.clone();
 function frame() {
   requestAnimationFrame(frame);
   let dt = Math.min(clock.getDelta(), 0.05);
+  const rawDt = dt;
 
   // gameplay first (it returns the jaw + articulation state)
   const params = game.update(dt);
@@ -259,7 +319,18 @@ function frame() {
   camera.lookAt(camLook);
 
   composer.render();
+
+  // the lasso overlay runs on real time, above the slowed 3D scene
+  if (!game.bulletTime && lassoId !== null) {
+    lassoId = null;
+    lasso.cancel();
+  }
+  lasso.update(rawDt);
+  lasso.render();
 }
+
+// debug / test handle
+window.MAW = { game, mouth, lasso, camera };
 
 ui.ready();
 frame();

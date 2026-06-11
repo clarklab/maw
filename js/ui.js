@@ -14,6 +14,8 @@ export class UI {
       breathMeter: document.getElementById('breath-meter'),
       breathFill: document.getElementById('breath-fill'),
       redflash: document.getElementById('redflash'),
+      stuckTip: document.getElementById('stuck-tip'),
+      bulletVignette: document.getElementById('bullet-vignette'),
       title: document.getElementById('title-screen'),
       end: document.getElementById('end-screen'),
       endTitle: document.getElementById('end-title'),
@@ -79,6 +81,18 @@ export class UI {
     c.classList.add('show');
     clearTimeout(this._chapterTimer);
     this._chapterTimer = setTimeout(() => c.classList.remove('show'), 2600);
+  }
+
+  // Persistent nag while food is stuck in the teeth. Pass null to hide.
+  stuckTip(text) {
+    const el = this.el.stuckTip;
+    if (!text) { el.classList.add('hidden'); return; }
+    el.textContent = text;
+    el.classList.remove('hidden');
+  }
+
+  bulletTime(on) {
+    this.el.bulletVignette.classList.toggle('on', !!on);
   }
 
   redFlash() {

@@ -116,9 +116,10 @@ const game = new Game({ scene, mouth, ui: stub, audio: stub });
 game.start();
 check('game starts in playing state', game.state === 'playing');
 
-// simulate ~40 seconds: alternate talking and chomping
+// simulate ~60 seconds: alternate talking and chomping
+// (crisis slow-mo genuinely dilates the game clock now, so give it room)
 let chomped = 0;
-for (let f = 0; f < 2400; f++) {
+for (let f = 0; f < 3600; f++) {
   // bite down rhythmically so chomps, chews and blocks all happen
   game.pressed = (f % 90) > 70;
   const params = game.update(1 / 60);
@@ -135,6 +136,10 @@ check('no NaN positions among food', game.foods.every((fd) => Number.isFinite(fd
 geometryFinite(scene, 'scene after 40s of play');
 
 // breath mechanic: hold shut until forced open
+// (fresh game, and forbid sticking — holding with food stuck enters bullet
+// time instead of suffocating)
+game.start();
+game.nextStuckAt = Infinity;
 game.pressed = true;
 let forced = false;
 for (let f = 0; f < 600; f++) {
@@ -142,6 +147,46 @@ for (let f = 0; f < 600; f++) {
   if (game.forcedOpen > 0) { forced = true; break; }
 }
 check('suffocation forces the mouth open', forced);
+game.pressed = false;
+
+// --- food stuck in teeth + bullet time
+game.start();
+game.nextStuckAt = 1; // force the very next chomped piece to stick
+game._spawnFood();
+game.foods[0].mesh.position.set(0, 0, 3); // right between the teeth
+game._chomp();
+check('chomps are counted', game.chompedCount >= 1);
+check('food got stuck in the teeth', !!game.stuck);
+check('stuck morsel geometry finite', (() => {
+  const p = game.stuck.mesh.position;
+  return Number.isFinite(p.x + p.y + p.z);
+})());
+
+game.pressed = true;
+for (let f = 0; f < 90 && !game.bulletTime; f++) game.update(1 / 60);
+check('long press enters bullet time', game.bulletTime === true);
+for (let f = 0; f < 40; f++) game.update(1 / 60);
+check('bullet time slows the clock', game.timeScale < 0.3);
+
+game.highlightStuck();
+game.update(1 / 60);
+check('highlighted morsel glows', game.stuck.mesh.material.emissiveIntensity > 0);
+
+const scoreBefore = game.score;
+game.clearStuck();
+check('cleared morsel scores and unsticks', !game.stuck && game.score > scoreBefore);
+check('bullet time releases after cleaning', game.bulletTime === false);
+game.pressed = false;
+for (let f = 0; f < 60; f++) game.update(1 / 60);
+check('time returns to normal', game.timeScale > 0.8);
+
+// releasing the finger also cancels bullet time
+game._stickFood(story.FOODS[0]);
+game.pressed = true;
+for (let f = 0; f < 90 && !game.bulletTime; f++) game.update(1 / 60);
+check('re-stuck food re-enters bullet time', game.bulletTime === true);
+game.pointerUp();
+check('lifting the finger cancels bullet time', game.bulletTime === false);
 
 console.log(failures === 0 ? '\nALL OK' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

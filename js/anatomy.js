@@ -31,6 +31,20 @@ export const MOUTH = {
 const UPPER_ARCH = { rx: 2.75, rz: 4.35, zOff: 0.95 };
 const LOWER_ARCH = { rx: 2.56, rz: 4.05, zOff: 0.95 };
 
+// A spot on the lingual (tongue-facing) side of the upper arch at angle `a`
+// from the midline — where a chomped morsel wedges itself between the teeth.
+// The maxilla never moves, so these points are stable in world space.
+export function upperLingualSpot(a, y = 0.4, inset = 0.26) {
+  const nx = UPPER_ARCH.rz * Math.sin(a);
+  const nz = UPPER_ARCH.rx * Math.cos(a);
+  const nl = Math.hypot(nx, nz);
+  return new THREE.Vector3(
+    UPPER_ARCH.rx * Math.sin(a) - (nx / nl) * inset,
+    y,
+    UPPER_ARCH.zOff + UPPER_ARCH.rz * Math.cos(a) - (nz / nl) * inset
+  );
+}
+
 // Seeded RNG so the anatomy is identical on every visit.
 function mulberry32(seed) {
   return function () {

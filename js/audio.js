@@ -341,6 +341,128 @@ export class AudioEngine {
     n.start(t); n.stop(t + 0.55);
   }
 
+  // A morsel wedges itself between two teeth: dull thock + sticky squelch.
+  stuck() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(62, t + 0.14);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.4, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    osc.connect(og); og.connect(this.master);
+    osc.start(t); osc.stop(t + 0.2);
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 420;
+    f.Q.value = 4;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.22, t + 0.02);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.38);
+  }
+
+  // Time dilates — a sub drop and the air going thick.
+  bulletIn() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(190, t);
+    osc.frequency.exponentialRampToValueAtTime(34, t + 0.55);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    osc.connect(g); g.connect(this.master);
+    osc.start(t); osc.stop(t + 0.75);
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.Q.value = 4;
+    f.frequency.setValueAtTime(3200, t);
+    f.frequency.exponentialRampToValueAtTime(140, t + 0.5);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.16, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.6);
+  }
+
+  // …and snaps back to dinner speed.
+  bulletOut() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(260, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.22);
+    f.Q.value = 1.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+    n.connect(f); f.connect(g); g.connect(this.master);
+    n.start(t); n.stop(t + 0.3);
+  }
+
+  // The drawn circle missed — a soft fizzle.
+  fizzle() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.exponentialRampToValueAtTime(180, t + 0.22);
+    f.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+    n.connect(f); f.connect(g); g.connect(this.master);
+    n.start(t); n.stop(t + 0.28);
+  }
+
+  // The stuck piece bursts free: airy puff + a tiny ascending sparkle.
+  poof() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 1400;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.28, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.26);
+
+    [660, 880, 1320, 1760].forEach((freq, i) => {
+      const tt = t + 0.05 + i * 0.06;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, tt);
+      g.gain.linearRampToValueAtTime(0.13, tt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.4);
+      o.connect(g); g.connect(this.master);
+      o.start(tt); o.stop(tt + 0.45);
+    });
+  }
+
   // Story chapter chime — a warm distant bell (church bells over the harbor).
   chime() {
     if (!this.enabled) return;

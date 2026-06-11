@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node test/smoke.mjs",
     "shots": "node test/shot.mjs",
+    "stuck-check": "node test/stuck-check.mjs",
     "serve": "python3 -m http.server 8000"
   },
   "dependencies": {
