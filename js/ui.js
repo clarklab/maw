@@ -16,6 +16,8 @@ export class UI {
       redflash: document.getElementById('redflash'),
       stuckTip: document.getElementById('stuck-tip'),
       bulletVignette: document.getElementById('bullet-vignette'),
+      cueWord: document.getElementById('cue-word'),
+      cueFood: document.getElementById('cue-food'),
       title: document.getElementById('title-screen'),
       end: document.getElementById('end-screen'),
       endTitle: document.getElementById('end-title'),
@@ -26,6 +28,30 @@ export class UI {
     };
     this._calloutTimer = null;
     this._hintShown = 0;
+    // teaching captions on the edge cues fade away after a few showings
+    this._cueTeach = { word: 3, food: 3 };
+    this._cueWasOn = { word: false, food: false };
+    this._cueLast = { word: -1, food: -1 };
+  }
+
+  // Edge-glow cues, 0..1: gold from the top while a word needs out,
+  // red from the bottom while food is closing on the lips.
+  cues(word, food) {
+    for (const [kind, v, el] of [
+      ['word', word, this.el.cueWord],
+      ['food', food, this.el.cueFood],
+    ]) {
+      if (Math.abs(v - this._cueLast[kind]) > 0.01) {
+        el.style.opacity = v.toFixed(2);
+        this._cueLast[kind] = v;
+      }
+      const on = v > 0.55;
+      if (on && !this._cueWasOn[kind] && this._cueTeach[kind] > 0) {
+        this._cueTeach[kind]--;
+        if (this._cueTeach[kind] === 0) el.classList.add('no-label');
+      }
+      this._cueWasOn[kind] = on;
+    }
   }
 
   ready() { this.el.loading.classList.add('done'); }

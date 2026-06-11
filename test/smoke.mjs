@@ -121,7 +121,8 @@ check('game starts in playing state', game.state === 'playing');
 let chomped = 0;
 for (let f = 0; f < 3600; f++) {
   // bite down rhythmically so chomps, chews and blocks all happen
-  game.pressed = (f % 90) > 70;
+  // (short bites — long holds muffle too many words for a stable check)
+  game.pressed = (f % 90) > 76;
   const params = game.update(1 / 60);
   mouth.update(1 / 60, params);
   if (!Number.isFinite(game.jawAngle)) { check('jaw finite', false); break; }

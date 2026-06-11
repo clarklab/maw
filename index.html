@@ -44,6 +44,11 @@
   <div id="vignette"></div>
   <div id="redflash"></div>
   <div id="bullet-vignette"></div>
+
+  <!-- edge-glow cues: gold = a word needs out, red = food at the lips -->
+  <div id="cue-word"><span>OPEN&nbsp;&middot;&nbsp;LET&nbsp;THE&nbsp;WORD&nbsp;OUT</span></div>
+  <div id="cue-food"><span>BITE&nbsp;DOWN!</span></div>
+
   <canvas id="lasso"></canvas>
 
   <!-- HUD -->
@@ -64,18 +69,13 @@
   <div id="title-screen">
     <div class="title-inner">
       <h1>MAW</h1>
-      <p class="subtitle">a game about talking with your mouth full</p>
-      <div class="rules">
-        <p><em>You are the mouth.</em> Dinner in Dalmatia, and you simply must tell
-        the story of your travels through Croatia &mdash; mid-bite.</p>
-        <p><span class="key">RELEASE</span> to let each <b>word</b> of the story escape your lips.</p>
-        <p><span class="key">HOLD</span> to bite down and stop the <b>food</b> from escaping.</p>
-        <p>Three pieces of food past your lips and your reputation is finished.</p>
-        <p>Food <b>stuck in your teeth</b>? Hold to slip into bullet time,
-        then circle it with a <em>second</em> finger.</p>
+      <p class="subtitle">talking with your mouth full</p>
+      <div class="controls">
+        <div class="ctl"><span class="key">HOLD</span><span class="ctl-label">bite &mdash; keep the food in</span></div>
+        <div class="ctl"><span class="key">RELEASE</span><span class="ctl-label">speak &mdash; let the story out</span></div>
       </div>
-      <button id="start-btn">TAP&nbsp;TO&nbsp;OPEN&nbsp;WIDE</button>
-      <p class="fineprint">headphones recommended &middot; medically dubious &middot; gastronomically accurate</p>
+      <button id="start-btn">OPEN&nbsp;WIDE</button>
+      <p class="fineprint">headphones recommended</p>
     </div>
   </div>
 
