@@ -362,6 +362,64 @@ export class AudioEngine {
     n.start(t); n.stop(t + 0.55);
   }
 
+  // A word reaches the lips: soft rising breath — "let it out".
+  wordRising() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(420, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.4);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.07, t + 0.12);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.5);
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.4);
+    f.Q.value = 1.6;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.05, t + 0.15);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.5);
+  }
+
+  // Food makes its dash for the light: wet lunge whoosh + low thump.
+  foodLunge() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.Q.value = 3;
+    f.frequency.setValueAtTime(380, t);
+    f.frequency.exponentialRampToValueAtTime(1500, t + 0.22);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.16, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.34);
+
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(170, t);
+    o.frequency.exponentialRampToValueAtTime(64, t + 0.12);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.22, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.2);
+  }
+
   // A morsel wedges itself between two teeth: dull thock + sticky squelch.
   stuck() {
     if (!this.enabled) return;

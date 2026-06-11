@@ -140,6 +140,11 @@ const throatGlow = new THREE.PointLight(0xff6a50, 0.5, 4.5, 2);
 throatGlow.position.set(0, 0.7, -1.0);
 scene.add(throatGlow);
 
+// gleam on the front of both dental arches — the smile is the frame
+const toothGleam = new THREE.PointLight(0xfff6e2, 1.0, 4.2, 2);
+toothGleam.position.set(0, 0.12, 4.5);
+scene.add(toothGleam);
+
 // ----------------------------------------------------------------- modules
 
 const ui = new UI();
@@ -299,6 +304,7 @@ function frame() {
   const pulse = 0.85 + 0.3 * Math.max(0, Math.sin(elapsed * 3.4)) ** 6;
   fleshL.intensity = 1.3 * pulse;
   fleshR.intensity = 1.3 * pulse * 0.94;
+  toothGleam.intensity = 0.8 + 2.2 * open01;
 
   // adaptive exposure — eyes adjust to the dark when the mouth shuts
   const targetExposure = 1.08 + (1 - open01) * 0.5;
@@ -317,7 +323,7 @@ function frame() {
   );
   camLook.set(
     Math.sin(elapsed * 0.4) * 0.15,
-    -0.3 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.25,
+    -0.06 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.22,
     6.0
   );
   camera.lookAt(camLook);

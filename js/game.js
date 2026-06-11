@@ -81,8 +81,15 @@ function foodMaterial(spec) {
     clearcoat: spec.clearcoat,
     clearcoatRoughness: 0.2,
     envMapIntensity: 0.8,
+    emissive: new THREE.Color(spec.juice), // warning glow before it lunges
+    emissiveIntensity: 0,
   });
 }
+
+const sstep = (a, b, x) => {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
 
 // Arch angles of the gaps between the upper front teeth — candidate spots
 // for a morsel to wedge itself into.
@@ -174,6 +181,7 @@ export class Game {
     this.ui.bulletTime(false);
     this.ui.stuckTip(null);
     this.audio.stopStory();
+    this.ui.cues(0, 0);
     this.ui.resetStory();
     this.ui.setScore(0);
     this.ui.setManners(3);
@@ -199,6 +207,9 @@ export class Game {
       t: 0, duration,
       wobble: Math.random() * Math.PI * 2,
       muffled: false,
+      cued: false,
+      baseScaleX: aspect * scale,
+      baseScaleY: scale,
     };
 
     const chapter = chapterAt(this.wordIndex);
@@ -249,6 +260,17 @@ export class Game {
 
     w.t += dt / w.duration;
     this._wordPos(Math.min(w.t, 1), w.sprite.position);
+
+    // approach cue: the word has reached the lips — let it out NOW
+    if (!w.cued && w.t > 0.68) {
+      w.cued = true;
+      this.audio.wordRising();
+    }
+    const near = sstep(0.68, 0.95, w.t);
+    if (near > 0) {
+      const s = 1 + near * 0.14 * (0.5 + 0.5 * Math.sin(performance.now() * 0.02));
+      w.sprite.scale.set(w.baseScaleX * s, w.baseScaleY * s, 1);
+    }
 
     // crossing the lips
     if (w.sprite.position.z >= MOUTH.lipsZ - 0.15) {
@@ -347,8 +369,19 @@ export class Game {
         continue;
       }
 
-      // urge to escape: the food gets launched toward the light
+      // urge to escape: the food gets launched toward the light.
+      // It TELEGRAPHS first — a shiver and a rising glow — so the player
+      // can see which piece is about to make a run for it.
       f.urgeTimer -= dt;
+      if (f.urgeTimer > 0 && f.urgeTimer < 0.7) {
+        const sh = 1 - f.urgeTimer / 0.7;
+        p.x += Math.sin(performance.now() * 0.05 + i * 7) * 0.014 * sh;
+        p.y += Math.abs(Math.sin(performance.now() * 0.07 + i * 3)) * 0.012 * sh;
+        f.mesh.material.emissiveIntensity =
+          sh * (0.45 + 0.35 * Math.sin(performance.now() * 0.025));
+      } else if (f.mesh.material.emissiveIntensity > 0) {
+        f.mesh.material.emissiveIntensity = Math.max(0, f.mesh.material.emissiveIntensity - dt * 4);
+      }
       if (f.urgeTimer <= 0) {
         const interval = lerp(6.5, 3.2, this.difficulty);
         f.urgeTimer = interval * (0.7 + Math.random() * 0.6);
@@ -361,6 +394,7 @@ export class Game {
         // aim roughly at the aperture centre height
         f.vel.y += (apNow.centerY + 0.6 - p.y) * 0.5;
         f.spin.set(Math.random() * 8 - 4, Math.random() * 8 - 4, Math.random() * 8 - 4);
+        this.audio.foodLunge();
       }
 
       // physics
@@ -699,6 +733,25 @@ export class Game {
       // no streak builds while you're talking with food in your teeth
       this.streak = Math.min(this.streak, 1);
     }
+
+    // edge-glow cues: gold up top = a word needs out (OPEN),
+    // red below = food is closing on your lips (BITE)
+    let wordCue = 0, foodCue = 0;
+    if (this.state === 'playing') {
+      if (this.activeWord && !this.activeWord.muffled) {
+        wordCue = sstep(0.62, 0.9, this.activeWord.t);
+      }
+      for (const f of this.foods) {
+        if (f.state !== 'loose') continue;
+        let danger = sstep(3.0, 5.6, f.mesh.position.z);
+        // a piece about to lunge is already dangerous
+        if (f.urgeTimer > 0 && f.urgeTimer < 0.7) {
+          danger = Math.max(danger, 0.45 * (1 - f.urgeTimer / 0.7));
+        }
+        foodCue = Math.max(foodCue, danger);
+      }
+    }
+    this.ui.cues(wordCue, foodCue);
 
     // crisis slow-mo: word and food both near the exit
     let crisis = false;
