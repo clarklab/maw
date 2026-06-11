@@ -377,6 +377,104 @@ function buildGums(arch, boundaries, isUpper, rng) {
 
 // ------------------------------------------------------------------- palate
 
+// Dedicated palate skin: transverse rugae fanning out from the median raphe
+// on the front third, vascular mottle toward the velum. uv: u across the
+// mouth, v back → front (canvas top = front, since CanvasTexture flips Y).
+function palateTextures(rng) {
+  const w = 1024, h = 1024;
+  const cv = canvas(w, h);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#c47e82';
+  ctx.fillRect(0, 0, w, h);
+  blotch(ctx, w, h, rng, 90, 70, 220, [[150, 72, 80], [212, 130, 130]], 0.16); // broad tonal patches
+  blotch(ctx, w, h, rng, 320, 18, 95, [[228, 152, 152], [162, 82, 90], [206, 118, 122]], 0.16);
+  blotch(ctx, w, h, rng, 1100, 2, 10, [[232, 162, 160], [145, 65, 76]], 0.2);
+
+  const bv = canvas(w, h);
+  const bctx = bv.getContext('2d');
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, w, h);
+  // mucosal stipple
+  for (let i = 0; i < 6000; i++) {
+    const x = rng() * w, y = rng() * h, r = 0.6 + rng() * 2.2;
+    bctx.fillStyle = `rgba(${rng() > 0.5 ? 255 : 0},${rng() > 0.5 ? 255 : 0},${rng() > 0.5 ? 255 : 0},${0.04 + rng() * 0.07})`;
+    bctx.beginPath(); bctx.arc(x, y, r, 0, 7); bctx.fill();
+  }
+
+  // vessels showing through across the vault and toward the soft palate
+  for (let i = 0; i < 70; i++) {
+    let x = rng() * w, y = h * (0.42 + rng() * 0.58);
+    ctx.strokeStyle = `rgba(${120 + rng() * 50 | 0}, ${35 + rng() * 25 | 0}, ${55 + rng() * 30 | 0}, ${0.16 + rng() * 0.18})`;
+    ctx.lineWidth = 1.4 + rng() * 3.4;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    let ang = rng() * Math.PI * 2;
+    for (let s = 0; s < 10; s++) {
+      ang += (rng() - 0.5) * 1.1;
+      x += Math.cos(ang) * (8 + rng() * 16);
+      y += Math.sin(ang) * (8 + rng() * 16);
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // rugae: paired ridges fanning back-and-outward from the raphe,
+  // front third of the palate (canvas y ≈ 0.07h … 0.46h)
+  const ridge = (c, x0, y0, cx, cy, x1, y1, width, color, blur) => {
+    c.strokeStyle = color;
+    c.lineWidth = width;
+    c.lineCap = 'round';
+    c.shadowColor = color;
+    c.shadowBlur = blur;
+    c.beginPath();
+    c.moveTo(x0, y0);
+    c.quadraticCurveTo(cx, cy, x1, y1);
+    c.stroke();
+    c.shadowBlur = 0;
+  };
+  const rows = 9;
+  for (let r = 0; r < rows; r++) {
+    const y0 = h * (0.075 + r * 0.055) + (rng() - 0.5) * h * 0.014;
+    for (const side of [-1, 1]) {
+      const sx = w / 2 + side * (8 + rng() * 14);
+      const reach = w * (0.16 + rng() * 0.1 + r * 0.012);
+      const droop = h * (0.035 + rng() * 0.03);
+      const ex = w / 2 + side * reach;
+      const cxp = w / 2 + side * reach * 0.45;
+      const wob = (rng() - 0.5) * h * 0.02;
+      // albedo: lit crest with a soft shadow tucked beneath
+      ridge(ctx, sx, y0 + 4, cxp, y0 + droop * 0.5 + 6 + wob, ex, y0 + droop + 5, 9 + rng() * 4, 'rgba(120, 50, 60, 0.32)', 5);
+      ridge(ctx, sx, y0, cxp, y0 + droop * 0.5 + wob, ex, y0 + droop, 8 + rng() * 4, 'rgba(232, 158, 158, 0.5)', 4);
+      // bump: raised crest
+      ridge(bctx, sx, y0, cxp, y0 + droop * 0.5 + wob, ex, y0 + droop, 12 + rng() * 5, 'rgba(255,255,255,0.65)', 7);
+    }
+  }
+
+  // median raphe: a pale seam in a shallow groove, fading toward the velum
+  const seam = ctx.createLinearGradient(0, 0, 0, h);
+  seam.addColorStop(0, 'rgba(225, 150, 150, 0.5)');
+  seam.addColorStop(0.55, 'rgba(225, 150, 150, 0.25)');
+  seam.addColorStop(1, 'rgba(225, 150, 150, 0)');
+  ctx.fillStyle = seam;
+  ctx.fillRect(w / 2 - 5, 0, 10, h);
+  ctx.fillStyle = 'rgba(110, 42, 52, 0.3)';
+  ctx.fillRect(w / 2 - 12, 0, 6, h * 0.7);
+  ctx.fillRect(w / 2 + 6, 0, 6, h * 0.7);
+  bctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  bctx.lineWidth = 9;
+  bctx.shadowColor = 'rgba(0,0,0,0.5)';
+  bctx.shadowBlur = 6;
+  bctx.beginPath(); bctx.moveTo(w / 2, 0); bctx.lineTo(w / 2, h * 0.72); bctx.stroke();
+  bctx.shadowBlur = 0;
+
+  // incisive papilla: the little bump right behind the front teeth
+  ctx.fillStyle = 'rgba(226, 150, 150, 0.5)';
+  ctx.beginPath(); ctx.ellipse(w / 2, h * 0.045, 16, 26, 0, 0, 7); ctx.fill();
+  bctx.fillStyle = 'rgba(255,255,255,0.7)';
+  bctx.beginPath(); bctx.ellipse(w / 2, h * 0.045, 14, 24, 0, 0, 7); bctx.fill();
+
+  return { map: srgbTexture(cv), bumpMap: dataTexture(bv) };
+}
+
 function buildPalate() {
   const rxIn = 2.30, rzIn = 3.85, zOff = UPPER_ARCH.zOff;
   return paramGeometry(56, 72, (u, v, out) => {
@@ -395,9 +493,9 @@ function buildPalate() {
     let y = 0.78 + depth * Math.pow(Math.max(0, 1 - s * s), 0.85);
     // soft palate droops toward the uvula
     y -= sstep(0.18, 0.0, v) * 0.45 * (1 - s * s * 0.5);
-    // rugae: transverse ridges on the front third
-    const rw = sstep(0.58, 0.72, v) * (1 - sstep(0.9, 1, v));
-    y -= 0.055 * Math.pow(Math.abs(Math.sin(z * 4.1 + Math.abs(x) * 0.9)), 1.4) * rw * (0.35 + 0.65 * (1 - Math.abs(s)));
+    // rugae: transverse ridges across the front half of the vault
+    const rw = sstep(0.4, 0.58, v) * (1 - sstep(0.9, 1, v));
+    y -= 0.085 * Math.pow(Math.abs(Math.sin(z * 4.1 + Math.abs(x) * 0.9)), 1.4) * rw * (0.35 + 0.65 * (1 - Math.abs(s)));
     // median raphe
     y -= 0.035 * Math.exp(-Math.pow(s * 6.5, 2)) * sstep(0.3, 0.6, v);
 
@@ -410,12 +508,13 @@ function buildVelum(materials) {
   const group = new THREE.Group();
 
   const velumGeo = paramGeometry(28, 14, (u, v, out) => {
-    // hangs from the back palate edge, curving down toward the pharynx
+    // hangs from the back palate edge, curving down toward the pharynx —
+    // kept behind the camera so the rugae vault stays in view
     const s = u * 2 - 1;
     const halfW = lerp(1.75, 0.55, v);
     const x = s * halfW;
-    const y = lerp(1.12, 0.84, v) - s * s * 0.28 - v * v * 0.10;
-    const z = lerp(-1.43, -1.16, v) + (1 - s * s) * v * 0.22;
+    const y = lerp(1.12, 0.88, v) - s * s * 0.28 - v * v * 0.10;
+    const z = lerp(-1.95, -1.72, v) + (1 - s * s) * v * 0.08;
     out.set(x, y, z);
   });
   const velum = new THREE.Mesh(velumGeo, materials.velum);
@@ -435,7 +534,7 @@ function buildVelum(materials) {
   uvula.castShadow = true;
 
   const pendulum = new THREE.Group();
-  pendulum.position.set(0, 1.45, -1.28); // right at the camera: the player IS the hangy ball
+  pendulum.position.set(0, 1.45, -1.62); // right at the camera: the player IS the hangy ball
   pendulum.add(uvula);
   group.add(pendulum);
 
@@ -445,7 +544,7 @@ function buildVelum(materials) {
 // Palatoglossal arches — the pillars framing the view down the throat.
 function buildPillar(side) {
   const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(side * 1.05, 1.05, -1.30),
+    new THREE.Vector3(side * 1.05, 1.05, -1.55),
     new THREE.Vector3(side * 1.75, 0.55, -0.85),
     new THREE.Vector3(side * 2.18, -0.10, -0.15),
     new THREE.Vector3(side * 2.30, -0.75, 0.55),
@@ -695,8 +794,9 @@ export function buildMouth(scene) {
     sheen: 0.4, sheenColor: new THREE.Color(0xff8090), envMapIntensity: 0.55,
     side: THREE.DoubleSide,
   });
+  const palTex = palateTextures(rng);
   const palateMat = new THREE.MeshPhysicalMaterial({
-    map: srgbTexture(mucosaTexture(rng, '#c98184', [[225, 150, 150], [165, 85, 90], [205, 120, 122]], 26), 2, 2),
+    map: palTex.map, bumpMap: palTex.bumpMap, bumpScale: 5.0,
     roughness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.3,
     envMapIntensity: 0.5, side: THREE.DoubleSide,
   });
