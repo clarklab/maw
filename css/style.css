@@ -64,6 +64,14 @@ body {
   pointer-events: none;
 }
 
+/* the exit lane — rhythm track on the left edge */
+#lane {
+  position: absolute;
+  left: 0; top: 0;
+  width: 96px; height: 100%;
+  pointer-events: none;
+}
+
 /* ---------- edge-glow cues ---------- */
 /* opacity is driven per-frame from gameplay (0..1) */
 
@@ -335,12 +343,14 @@ h1 {
   display: flex;
   align-items: center;
   gap: 16px;
+  text-align: left;
 }
 .ctl-label {
   font-style: italic;
   font-size: clamp(13px, 2.1vh, 16px);
   color: #baa68d;
   letter-spacing: 0.03em;
+  text-align: left;
 }
 .key {
   font-family: Futura, 'Avenir Next', sans-serif;

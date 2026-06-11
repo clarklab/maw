@@ -132,6 +132,7 @@ export class Game {
     this.shake = 0;
     this.timeScale = 1;
     this.endTimer = -1;
+    this.laneItems = [];
 
     // food stuck in the teeth + bullet time
     this.chompedCount = 0;
@@ -334,6 +335,7 @@ export class Game {
       urgeTimer: 2.5 + Math.random() * 3,
       blockedAt: -10,
       swallowT: 0,
+      laneColor: '#' + spec.juice.toString(16).padStart(6, '0'),
     });
     this.audio.crunch(0.4);
   }
@@ -735,20 +737,31 @@ export class Game {
     }
 
     // edge-glow cues: gold up top = a word needs out (OPEN),
-    // red below = food is closing on your lips (BITE)
+    // red below = food is closing on your lips (BITE) — and the exit-lane
+    // items that ride the rhythm track toward the lips
     let wordCue = 0, foodCue = 0;
+    this.laneItems.length = 0;
     if (this.state === 'playing') {
       if (this.activeWord && !this.activeWord.muffled) {
         wordCue = sstep(0.62, 0.9, this.activeWord.t);
+        this.laneItems.push({ type: 'word', t: clamp(this.activeWord.t, 0, 1) });
       }
       for (const f of this.foods) {
         if (f.state !== 'loose') continue;
         let danger = sstep(3.0, 5.6, f.mesh.position.z);
         // a piece about to lunge is already dangerous
+        let warn = 0;
         if (f.urgeTimer > 0 && f.urgeTimer < 0.7) {
-          danger = Math.max(danger, 0.45 * (1 - f.urgeTimer / 0.7));
+          warn = 1 - f.urgeTimer / 0.7;
+          danger = Math.max(danger, 0.45 * warn);
         }
         foodCue = Math.max(foodCue, danger);
+        this.laneItems.push({
+          type: 'food',
+          t: clamp((f.mesh.position.z - 0.4) / (MOUTH.lipsZ - 0.4), 0, 1),
+          color: f.laneColor,
+          warn,
+        });
       }
     }
     this.ui.cues(wordCue, foodCue);
