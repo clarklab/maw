@@ -285,16 +285,16 @@ const LOWER_TEETH = [
 // are the signed arch angles between teeth (used to festoon the gums).
 function buildArchTeeth(arch, roster, isUpper, gumlineY, rng) {
   const parts = [];
-  const boundaries = [0.035]; // half-gap at the midline
+  const boundaries = [0.018]; // half-gap at the midline — a tight diastema-free smile
   const p = new THREE.Vector3();
   const geos = [];
-  let cursor = 0.10; // arc cm from midline to first tooth surface
+  let cursor = 0.05; // arc cm from midline to first tooth surface
 
   for (const [type, w, h, d] of roster) {
     const aEnd = angleAtArc(arch, cursor + w);
     const aMid = angleAtArc(arch, cursor + w / 2);
-    boundaries.push(aEnd + 0.012);
-    cursor += w + 0.06; // interproximal gap
+    boundaries.push(aEnd + 0.006);
+    cursor += w + 0.018; // contact-point spacing: dentist-straight, no gaps
 
     for (const side of [-1, 1]) {
       const a = aMid * side;
@@ -476,25 +476,32 @@ function palateTextures(rng) {
 }
 
 function buildPalate() {
-  const rxIn = 2.46, rzIn = 4.02, zOff = UPPER_ARCH.zOff;
+  const rxIn = 2.34, rzIn = 3.90, zOff = UPPER_ARCH.zOff;
   return paramGeometry(56, 72, (u, v, out) => {
     // v: 0 back (soft palate) → 1 front (behind the incisors)
     const s = u * 2 - 1; // -1..1 across
     const widthBack = 1.78, widthFront = 0.4;
     const vault = sstep(0, 0.34, v); // how far forward we've come
-    const halfW = lerp(widthBack, rxIn * Math.sqrt(Math.max(0.02, 1 - Math.pow((lerp(-1.35, zOff + rzIn - 0.2, v) - zOff) / rzIn, 2))), vault);
+    const halfW = lerp(widthBack, rxIn * Math.sqrt(Math.max(0.02, 1 - Math.pow((lerp(-1.35, zOff + rzIn - 0.1, v) - zOff) / rzIn, 2))), vault);
     const x = s * Math.max(halfW, widthFront);
-    let z = lerp(-1.45, zOff + rzIn - 0.18, Math.pow(v, 0.92));
+    let z = lerp(-1.45, zOff + rzIn - 0.1, Math.pow(v, 0.92));
     // pull the front corners back along the arch curve
     z -= s * s * sstep(0.55, 1, v) * 1.45;
 
-    // vault: highest mid-palate, descending to the alveolar ridge in front
-    // so the surface meets the gums with no trough behind the teeth
+    // vault: highest mid-palate, shallower toward the alveolar ridge in front
     let depth = lerp(0.65, 1.1, Math.sin(Math.min(v * 1.25, 1) * Math.PI * 0.5));
-    depth *= 1 - sstep(0.78, 1, v) * 0.62;
+    depth *= 1 - sstep(0.7, 1, v) * 0.5;
     let y = 0.78 + depth * Math.pow(Math.max(0, 1 - s * s), 0.85);
-    // lateral borders dive into the lingual gum wall — no slit along the arch
-    y -= sstep(0.8, 1, Math.abs(s)) * sstep(0.34, 0.6, v) * 0.35;
+
+    // the palate's border ends AT the gingival junction: a rim at gum-wall
+    // height, tucked into the gums, so the visible order is always
+    // palate → gum band → festooned margins → teeth. No curtains, no slits.
+    const rim = Math.max(
+      sstep(0.3, 0.06, 1 - Math.abs(s)) * vault, // lateral border along the arch
+      sstep(0.96, 1, v) * vault                  // front border behind the incisors
+    );
+    y = lerp(y, 1.22, rim);
+
     // soft palate droops toward the uvula
     y -= sstep(0.18, 0.0, v) * 0.45 * (1 - s * s * 0.5);
     // rugae: transverse ridges across the front half of the vault

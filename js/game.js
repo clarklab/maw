@@ -168,7 +168,7 @@ export class Game {
     this.streak = 1;
     this.manners = 3;
     this.wordIndex = 0;
-    this.wordTimer = 1.4;
+    this.wordTimer = 1.0;
     this.biteTimer = 1.2;
     this.endTimer = -1;
     this.activeWord = null;
@@ -202,7 +202,7 @@ export class Game {
     sprite.scale.set(aspect * scale, scale, 1);
     this.scene.add(sprite);
 
-    const duration = lerp(2.9, 1.8, this.difficulty);
+    const duration = lerp(1.7, 1.1, this.difficulty);
     this.activeWord = {
       text, sprite,
       t: 0, duration,
@@ -254,7 +254,7 @@ export class Game {
       if (w.sprite.material.opacity <= 0) {
         this.scene.remove(w.sprite);
         this.activeWord = null;
-        this.wordTimer = 0.7; // the word tries again shortly
+        this.wordTimer = 0.5; // the word tries again shortly
       }
       return;
     }
@@ -306,7 +306,7 @@ export class Game {
     });
     this.activeWord = null;
     this.wordIndex++;
-    this.wordTimer = lerp(1.5, 0.75, this.difficulty); // keep the story rolling
+    this.wordTimer = lerp(0.45, 0.22, this.difficulty); // conversational clip
 
     if (this.wordIndex >= WORDS.length) {
       this.endTimer = 1.6;
