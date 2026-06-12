@@ -112,6 +112,65 @@ body {
 @keyframes cuePulse { 50% { transform: scale(1.06); } }
 .no-label span { display: none; }
 
+/* ---------- DEFEND YOURSELF bonus round ---------- */
+
+#splats {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.splat-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0;
+  animation: splatHit 1.15s ease-out forwards;
+}
+@keyframes splatHit {
+  0%   { opacity: 0;    transform: scale(0.15); }
+  8%   { opacity: 0.95; transform: scale(1); }
+  60%  { opacity: 0.8; }
+  100% { opacity: 0;    transform: scale(1.1) translateY(6vh); }
+}
+
+#defend-banner {
+  position: absolute; inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+.db-title {
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  font-size: clamp(30px, 9vw, 68px);
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  color: #ff5e3a;
+  text-shadow: 0 0 28px rgba(255, 70, 25, 0.7), 0 3px 12px rgba(0,0,0,0.95);
+  opacity: 0;
+}
+.db-sub {
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: clamp(11px, 2vh, 14px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  text-transform: uppercase;
+  color: #ffd9a0;
+  text-shadow: 0 0 14px rgba(255, 170, 60, 0.5), 0 2px 6px rgba(0,0,0,0.9);
+  opacity: 0;
+}
+#defend-banner.go .db-title { animation: defendIn 2.4s ease-out forwards; }
+#defend-banner.go .db-sub { animation: defendIn 2.8s ease-out 0.15s forwards; }
+@keyframes defendIn {
+  0%   { opacity: 0; transform: scale(2.1); filter: blur(7px); }
+  10%  { opacity: 1; transform: scale(1);   filter: none; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.94); }
+}
+
 /* ---------- HUD ---------- */
 
 #hud {

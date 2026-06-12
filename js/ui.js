@@ -18,6 +18,8 @@ export class UI {
       bulletVignette: document.getElementById('bullet-vignette'),
       cueWord: document.getElementById('cue-word'),
       cueFood: document.getElementById('cue-food'),
+      defendBanner: document.getElementById('defend-banner'),
+      splats: document.getElementById('splats'),
       title: document.getElementById('title-screen'),
       end: document.getElementById('end-screen'),
       endTitle: document.getElementById('end-title'),
@@ -119,6 +121,32 @@ export class UI {
 
   bulletTime(on) {
     this.el.bulletVignette.classList.toggle('on', !!on);
+  }
+
+  // DEFEND YOURSELF — the bonus-round card (it fades itself out).
+  defendBanner(on) {
+    const el = this.el.defendBanner;
+    if (!on) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden', 'go');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('go');
+  }
+
+  // Juice across the lens when a morsel lands on your face.
+  splat(color) {
+    for (let i = 0; i < 3; i++) {
+      const b = document.createElement('div');
+      b.className = 'splat-blob';
+      const size = 16 + Math.random() * 26;
+      b.style.width = b.style.height = `${size}vmin`;
+      b.style.left = `${15 + Math.random() * 60}%`;
+      b.style.top = `${12 + Math.random() * 60}%`;
+      b.style.background =
+        `radial-gradient(circle at 40% 35%, ${color}e6, ${color}88 55%, transparent 72%)`;
+      b.style.animationDelay = `${(Math.random() * 0.08).toFixed(3)}s`;
+      b.addEventListener('animationend', () => b.remove());
+      this.el.splats.appendChild(b);
+    }
   }
 
   redFlash() {

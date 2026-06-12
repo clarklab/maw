@@ -584,6 +584,127 @@ export class AudioEngine {
     });
   }
 
+  // DEFEND YOURSELF: a chesty cough — low thump under two or three "kh"
+  // bursts of breath noise. Each launched morsel rides one of these.
+  cough(power = 1) {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // the chest thump
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(95, t);
+    o.frequency.exponentialRampToValueAtTime(36, t + 0.2);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.35 * power, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.26);
+
+    // kh — kh — (kh)
+    const bursts = 2 + ((Math.random() * 2) | 0);
+    for (let i = 0; i < bursts; i++) {
+      const tt = t + i * (0.12 + Math.random() * 0.05);
+      const n = this._noiseSource();
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.Q.value = 0.9;
+      f.frequency.setValueAtTime(950, tt);
+      f.frequency.exponentialRampToValueAtTime(320, tt + 0.11);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, tt);
+      g.gain.exponentialRampToValueAtTime(0.5 * power * (1 - i * 0.22), tt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.13);
+      n.connect(f); f.connect(g); g.connect(this.master);
+      n.start(tt); n.stop(tt + 0.16);
+    }
+  }
+
+  // A wet lip smack — the punctuation between coughs.
+  smack() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // the separation tick
+    const n = this._noiseSource();
+    const hf = ctx.createBiquadFilter();
+    hf.type = 'highpass';
+    hf.frequency.value = 1800;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.22, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    n.connect(hf); hf.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.05);
+
+    // the lip pop
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(430, t + 0.012);
+    o.frequency.exponentialRampToValueAtTime(120, t + 0.07);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.3, t + 0.012);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.11);
+
+    // sticky wet tail
+    const n2 = this._noiseSource();
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'lowpass';
+    f2.Q.value = 5;
+    f2.frequency.setValueAtTime(750, t + 0.02);
+    f2.frequency.exponentialRampToValueAtTime(220, t + 0.12);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.1, t + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    n2.connect(f2); f2.connect(g2); g2.connect(this.master);
+    n2.start(t + 0.02); n2.stop(t + 0.16);
+  }
+
+  // A morsel lands on your face. Sorry.
+  splat() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.Q.value = 2.5;
+    f.frequency.setValueAtTime(1300, t);
+    f.frequency.exponentialRampToValueAtTime(140, t + 0.18);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    n.connect(f); f.connect(g); g.connect(this.master);
+    n.start(t); n.stop(t + 0.26);
+
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(210, t);
+    o.frequency.exponentialRampToValueAtTime(48, t + 0.13);
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.42, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.18);
+
+    // the dribble down your collar
+    for (let i = 0; i < 3; i++) {
+      const tt = t + 0.12 + i * (0.05 + Math.random() * 0.04);
+      const d = ctx.createOscillator();
+      d.type = 'sine';
+      d.frequency.value = 500 + Math.random() * 500;
+      const dg = ctx.createGain();
+      dg.gain.setValueAtTime(0.06, tt);
+      dg.gain.exponentialRampToValueAtTime(0.0001, tt + 0.05);
+      d.connect(dg); dg.connect(this.master);
+      d.start(tt); d.stop(tt + 0.07);
+    }
+  }
+
   // Story chapter chime — a warm distant bell (church bells over the harbor).
   chime() {
     if (!this.enabled) return;
