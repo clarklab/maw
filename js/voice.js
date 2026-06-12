@@ -7,15 +7,22 @@
 // Everything degrades gracefully: if the assets are missing or still
 // downloading, the old synthesized formant vowels carry the word instead.
 
+// A gap of breath between words longer than this starts a new phrase —
+// those gaps are the player's safe windows to bite.
+const PHRASE_GAP = 0.28;
+
 export class VoiceEngine {
   constructor(base = 'assets/voice/') {
     this.base = base;
     this.manifest = null;
+    this.timings = null;       // { duration, words: [{ s, e, p }] }
     this.raw = new Map();      // filename | 'story' → ArrayBuffer
     this.buffers = new Map();  // filename | 'story' → AudioBuffer
     this.ctx = null;
     this.out = null;
     this.storySource = null;
+    this.narrGain = null;
+    this.narrLow = null;
   }
 
   // The clip filename for word i (duplicate words share one clip).
@@ -35,6 +42,20 @@ export class VoiceEngine {
     } catch {
       return;
     }
+    // word timestamps for performance mode (optional — classic mode without)
+    try {
+      const r = await fetch(this.base + 'timings.json');
+      if (r.ok) {
+        const t = await r.json();
+        const words = t.words.map(([s, e]) => ({ s, e, p: 0 }));
+        let p = 0;
+        for (let i = 1; i < words.length; i++) {
+          if (words[i].s - words[i - 1].e > PHRASE_GAP) p++;
+          words[i].p = p;
+        }
+        this.timings = { duration: t.duration, words };
+      }
+    } catch { /* no timings — classic mode */ }
     const fetchOne = async (key, path) => {
       try {
         const r = await fetch(path);
@@ -60,6 +81,51 @@ export class VoiceEngine {
   bind(audio) {
     this.ctx = audio.ctx;
     this.out = audio.master;
+    // decode the narration eagerly — performance mode needs it at start
+    if (this.raw.has('story')) this._buffer('story');
+  }
+
+  // Can the game run the story as a timed performance?
+  performanceReady() {
+    return !!(this.timings && this.buffers.has('story'));
+  }
+
+  // ------------------------------------------------- narration (performance)
+
+  // The continuous telling, with live rate control (bullet time slows the
+  // narrator's actual voice) and a duck for words mumbled through a bite.
+  startNarration() {
+    if (!this.performanceReady()) return false;
+    this.stopStory();
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.buffers.get('story');
+    this.narrLow = this.ctx.createBiquadFilter();
+    this.narrLow.type = 'lowpass';
+    this.narrLow.frequency.value = 9500;
+    this.narrGain = this.ctx.createGain();
+    this.narrGain.gain.value = 0.9;
+    src.connect(this.narrLow);
+    this.narrLow.connect(this.narrGain);
+    this.narrGain.connect(this.out);
+    src.start();
+    this.storySource = src;
+    return true;
+  }
+
+  setNarrationRate(r) {
+    if (this.storySource) this.storySource.playbackRate.value = r;
+  }
+
+  // A word hit closed lips: the narration smothers for its duration.
+  duckNarration(dur = 0.35) {
+    if (!this.narrGain) return;
+    const t = this.ctx.currentTime;
+    this.narrGain.gain.cancelScheduledValues(t);
+    this.narrGain.gain.setTargetAtTime(0.1, t, 0.015);
+    this.narrGain.gain.setTargetAtTime(0.9, t + dur, 0.07);
+    this.narrLow.frequency.cancelScheduledValues(t);
+    this.narrLow.frequency.setTargetAtTime(380, t, 0.015);
+    this.narrLow.frequency.setTargetAtTime(9500, t + dur, 0.09);
   }
 
   has(key) { return this.buffers.has(key) || this.raw.has(key); }

@@ -32,6 +32,10 @@ page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto('http://localhost:4174/');
 await page.waitForTimeout(4000);
 await page.click('#start-btn');
+for (let i = 0; i < 3; i++) { // tap through the story explainer
+  await page.waitForTimeout(500);
+  await page.click('#explainer');
+}
 await page.waitForTimeout(2000);
 
 // Force a stuck morsel

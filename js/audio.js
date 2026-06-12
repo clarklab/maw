@@ -291,6 +291,48 @@ export class AudioEngine {
     if (this.voice) this.voice.stopStory();
   }
 
+  // ---- performance mode: the narration IS the gameplay timeline
+  narrationTimings() {
+    return this.voice ? this.voice.timings : null;
+  }
+
+  narrationReady() {
+    return !!(this.enabled && this.voice && this.voice.performanceReady
+      && this.voice.performanceReady());
+  }
+
+  startNarration() {
+    return this.narrationReady() ? this.voice.startNarration() : false;
+  }
+
+  setNarrationRate(r) {
+    if (this.voice && this.voice.setNarrationRate) this.voice.setNarrationRate(r);
+  }
+
+  duckNarration(dur) {
+    if (this.voice && this.voice.duckNarration) this.voice.duckNarration(dur);
+  }
+
+  // Just the airy whoosh of a word slipping out — the narration itself is
+  // already speaking, so no clip and no synth vowel.
+  wordPass() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const n = this._noiseSource();
+    const bf = ctx.createBiquadFilter();
+    bf.type = 'bandpass';
+    bf.frequency.setValueAtTime(700, t);
+    bf.frequency.exponentialRampToValueAtTime(3200, t + 0.22);
+    bf.Q.value = 0.8;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.001, t);
+    bg.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+    n.connect(bf); bf.connect(bg); bg.connect(this.master);
+    n.start(t); n.stop(t + 0.3);
+  }
+
   // A word hits closed lips: pressed, nasal "mmph".
   muffled() {
     if (!this.enabled) return;

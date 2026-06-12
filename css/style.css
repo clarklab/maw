@@ -64,11 +64,11 @@ body {
   pointer-events: none;
 }
 
-/* the exit lane — rhythm track on the left edge */
+/* the exit highway — perspective rhythm board on the left side */
 #lane {
   position: absolute;
   left: 0; top: 0;
-  width: 96px; height: 100%;
+  width: 190px; height: 100%;
   pointer-events: none;
 }
 
@@ -285,7 +285,7 @@ body {
 
 /* ---------- full screens ---------- */
 
-#title-screen, #end-screen {
+#title-screen, #end-screen, #explainer {
   position: absolute; inset: 0;
   display: flex;
   align-items: center;
@@ -295,6 +295,7 @@ body {
   z-index: 10;
   transition: opacity 0.9s ease;
 }
+#title-screen.fading, #end-screen.fading, #explainer.fading { opacity: 0; pointer-events: none; }
 #title-screen.fading, #end-screen.fading { opacity: 0; pointer-events: none; }
 
 .title-inner {
@@ -331,38 +332,67 @@ h1 {
   letter-spacing: 0.05em;
 }
 
-/* minimal two-line control legend — the game teaches the rest in play */
-.controls {
-  margin: 44px auto 10px;
-  display: inline-flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: flex-start;
-}
-.ctl {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  text-align: left;
-}
-.ctl-label {
-  font-style: italic;
-  font-size: clamp(13px, 2.1vh, 16px);
-  color: #baa68d;
-  letter-spacing: 0.03em;
-  text-align: left;
-}
-.key {
-  font-family: Futura, 'Avenir Next', sans-serif;
+.kicker {
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
   font-size: 11px;
-  letter-spacing: 0.22em;
-  text-indent: 0.1em;
-  color: #f3e7cd;
-  border: 1px solid rgba(243, 231, 205, 0.35);
-  border-radius: 100px;
-  padding: 7px 0;
-  min-width: 92px;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  color: rgba(230, 200, 160, 0.65);
+  margin-bottom: 4px;
+}
+
+.triad {
+  margin-top: 30px;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  text-transform: uppercase;
+  color: rgba(243, 231, 205, 0.8);
+}
+
+/* ---------- story-voiced explainer ---------- */
+
+.exp-inner {
+  max-width: min(86vw, 460px);
   text-align: center;
+  padding: 20px;
+}
+/* fail-safe entrance: base opacity stays 1 so the card can never be
+   stranded invisible if the animation doesn't (re)start */
+.exp-inner.pop > * {
+  animation: riseIn 0.7s ease-out backwards;
+}
+.exp-inner.pop > *:nth-child(2) { animation-delay: 0.12s; }
+.exp-inner.pop > *:nth-child(3) { animation-delay: 0.3s; }
+#exp-text {
+  font-style: italic;
+  font-size: clamp(18px, 3vh, 24px);
+  line-height: 1.7;
+  color: #ecdfc8;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.8);
+}
+#exp-text b {
+  font-style: normal;
+  font-family: Futura, 'Avenir Next', sans-serif;
+  font-size: 0.72em;
+  letter-spacing: 0.18em;
+  color: #ffd9a0;
+}
+#exp-lane {
+  display: block;
+  width: 210px; height: 290px;
+  margin: 26px auto 0;
+}
+.exp-tap {
+  margin-top: 30px;
+  font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+  text-transform: uppercase;
+  color: rgba(240, 228, 205, 0.5);
+  animation: stuckPulse 1.8s ease-in-out infinite;
 }
 
 /* staggered entrance */

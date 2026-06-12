@@ -260,12 +260,78 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
+// ------------------------------------------------------ story explainer
+// Three taps of table-setting between the title and the first bite. The
+// middle card runs a live miniature of the rhythm board.
+
+const EXPLAINER_STEPS = [
+  { text: 'Dinner in Dalmatia. You are the mouth — and the story of your travels simply must be told, mid-bite.' },
+  {
+    text: 'Your words ride the board to your lips — be open when each arrives. TAP to bite when food makes its run, and chew in the green gaps.',
+    lane: true,
+  },
+  { text: 'Something stuck in your teeth? HOLD a finger — the world slows — then circle it with a second. The table is watching.' },
+];
+const explainerEl = document.getElementById('explainer');
+const expText = document.getElementById('exp-text');
+const expLaneCanvas = document.getElementById('exp-lane');
+const expLane = new Lane(expLaneCanvas, true);
+let expStep = -1;
+
+function showExplainerStep(i) {
+  expStep = i;
+  expText.textContent = EXPLAINER_STEPS[i].text;
+  expLaneCanvas.classList.toggle('hidden', !EXPLAINER_STEPS[i].lane);
+  const inner = explainerEl.querySelector('.exp-inner');
+  inner.classList.remove('pop');
+  void inner.offsetWidth;
+  inner.classList.add('pop');
+}
+
+// A looping six-and-a-half-second demo chart: a phrase of words, a green
+// bite window with a tomato making its run, then the next phrase.
+function explainerDemo(now) {
+  const clk = now % 6.5;
+  const H = 5;
+  const items = [];
+  const word = (time, w, p) => {
+    const eta = time - clk;
+    if (eta > -0.1 && eta < H) items.push({ type: 'word', t: 1 - eta / H, p, word: w });
+  };
+  word(1.0, 'We', 1); word(1.45, 'sailed', 1); word(1.8, 'out', 1);
+  word(2.15, 'of', 1); word(2.5, 'Split', 1);
+  if (4.1 - clk > 0 && 2.9 - clk < H) {
+    items.push({ type: 'gap', t0: 1 - (2.9 - clk) / H, t1: 1 - (4.1 - clk) / H });
+  }
+  word(4.45, 'at', 2); word(4.8, 'dawn,', 2);
+  const eta = 3.5 - clk;
+  if (eta > -0.1 && eta < H) {
+    items.push({ type: 'food', t: 1 - eta / H, color: '#d84a30', warn: eta < 1.2 ? 1 - eta / 1.2 : 0 });
+  }
+  for (let s = Math.ceil(clk); s - clk <= H; s++) {
+    items.push({ type: 'tick', t: 1 - (s - clk) / H });
+  }
+  return items;
+}
+
+explainerEl.addEventListener('click', () => {
+  if (expStep < 0) return;
+  if (expStep < EXPLAINER_STEPS.length - 1) {
+    showExplainerStep(expStep + 1);
+  } else {
+    expStep = -1;
+    explainerEl.classList.add('fading');
+    setTimeout(() => game.start(), 250);
+  }
+});
+
 document.getElementById('start-btn').addEventListener('click', () => {
   audio.init();
   audio.resume();
   lasso.reset();
   ui.hideTitle();
-  setTimeout(() => game.start(), 350);
+  explainerEl.classList.remove('hidden', 'fading');
+  showExplainerStep(0);
 });
 
 document.getElementById('retry-btn').addEventListener('click', () => {
@@ -360,10 +426,20 @@ function frame() {
   lasso.update(rawDt);
   lasso.render();
 
-  // the exit lane telegraphs what's riding toward the lips
-  lane.set(game.laneItems, game.state === 'playing' && !game.bulletTime);
+  // the exit highway is persistent during play, dimmed in bullet time
+  for (const kind of game.laneEvents) lane.flash(kind);
+  game.laneEvents.length = 0;
+  lane.set(game.laneItems, game.state === 'playing' ? (game.bulletTime ? 0.35 : 1) : 0);
   lane.update(rawDt);
   lane.render();
+
+  // the explainer's live miniature board
+  if (expStep >= 0 && EXPLAINER_STEPS[expStep].lane) {
+    expLane.set(explainerDemo(elapsed), 1);
+    expLane.alpha = 1; // the diagram is always solid
+    expLane.update(rawDt);
+    expLane.render();
+  }
 }
 
 // debug / test handle

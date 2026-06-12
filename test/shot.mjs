@@ -38,6 +38,12 @@ await page.waitForTimeout(4500);
 await page.screenshot({ path: 'test/shot-title.png' });
 
 await page.click('#start-btn');
+// tap through the story explainer
+for (let i = 0; i < 3; i++) {
+  await page.waitForTimeout(1600);
+  await page.screenshot({ path: `test/shot-explainer-${i}.png` });
+  await page.click('#explainer');
+}
 await page.waitForTimeout(3500);
 await page.screenshot({ path: 'test/shot-open.png' });
 
