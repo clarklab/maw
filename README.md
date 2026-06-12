@@ -72,11 +72,18 @@ from math and Canvas2D at load time, on top of [three.js](https://threejs.org)
   the tongue/cheeks/lips, the word flight path, scoring, slow-motion crises,
   the suffocation mechanic, and the stuck-food / bullet-time state machine.
 - `js/defend.js` — the DEFEND YOURSELF bonus round: the cough-flight camera
-  path out through the aperture, a procedurally skinned outside-of-the-face
-  plate (philtrum, nose tip, alar flares, chin boss — its lower half rides
-  the mandible so the fit reads from the guest's seat too), the volley of
-  cough-launched food aimed at your head, and the swipe-vs-circle gesture
-  split (accumulated heading turn tells a dodge flick from a blocking loop).
+  path out through the aperture, the volley of cough-launched food aimed at
+  your head, and the swipe-vs-circle gesture split (accumulated heading turn
+  tells a dodge flick from a blocking loop).
+- `js/face.js` — the dinner guest's head, built only for those ten seconds:
+  a parametric skull plate (brow ridge, orbital sockets, cheekbones,
+  nasolabial folds, philtrum, lip rolls, chin boss and jawline — the lower
+  half rides the mandible), a deformed-sphere nose with genuine overhang,
+  alar flares and nostrils, eyes with painted irises that blink, squint
+  with every cough and track the incoming food, ~400 instanced
+  salt-and-pepper hair clumps swept back over a receding hairline, peppered
+  brow tufts, a generated skin texture with pores, forehead furrows and
+  grey-flecked stubble, and a neck and collar to catch the splatter.
 - `js/lasso.js` — the bullet-time cleaning lasso: a Canvas2D layer over the
   WebGL scene with a glowing pencil trail under the finger, a point-in-polygon
   hit test against the morsel's projected position, and a morph that snaps the

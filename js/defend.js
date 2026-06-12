@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { MOUTH } from './anatomy.js';
 import { FOODS } from './story.js';
 import { foodGeometry, foodMaterial } from './game.js';
+import { buildGuestFace } from './face.js';
 
 const clamp = THREE.MathUtils.clamp;
 const lerp = THREE.MathUtils.lerp;
@@ -26,16 +27,17 @@ const GRAVITY = 1.8;      // gentle — spittle arcs, not cannonballs
 const HIT_R = 0.9;        // how close a morsel must pass to splat your face
 const LEAN = 1.7;         // how far a dodge throws your head sideways
 
-// Where the dinner guest sits: just across the table, eye to lip.
-const OUT_POS = new THREE.Vector3(0, 0.1, 9.9);
-const OUT_LOOK = new THREE.Vector3(0, 0.12, 6.15);
+// Where the dinner guest sits: across the table, far enough back that the
+// whole face — brows, eyes, nose, mouth, chin — fills the frame.
+const OUT_POS = new THREE.Vector3(0, 0.6, 13.0);
+const OUT_LOOK = new THREE.Vector3(0, 1.1, 6.2);
 
 // The cough-flight: duck under the incisors, out past the cheek, then the
 // whip-around that turns the mouth you were into the mouth you face.
 const FLY_POS = [
   MOUTH.cameraPos.clone(),
   new THREE.Vector3(0, -0.95, 5.2),
-  new THREE.Vector3(1.9, -0.1, 9.3),
+  new THREE.Vector3(2.1, 0.0, 11.6),
   OUT_POS.clone(),
 ];
 const FLY_LOOK = [
@@ -59,110 +61,6 @@ function quad(p0, p1, p2, t, out) {
     .addScaledVector(p0, it * it)
     .addScaledVector(p1, 2 * it * t)
     .addScaledVector(p2, t * t);
-}
-
-// ------------------------------------------------------------------- face
-// The outside of the face exists only for these ten seconds: an annular
-// skin plate ringing the lip roll — lower nose, philtrum, cheeks, upper
-// chin — whose lower half rides the mandible so the coughing fit reads
-// from the guest's side of the table too.
-
-const FACE = {
-  nu: 96, nv: 24,
-  holeRx: 2.55, holeRy: 0.6,    // tucked just behind the lip roll
-  outRx: 8.0, outRy: 7.0, outCy: 0.3,
-};
-
-const g2 = (dx, dy, sx, sy) => Math.exp(-((dx / sx) * (dx / sx) + (dy / sy) * (dy / sy)));
-
-// Skin relief, modelled as bumps over the base dome (+z is toward the guest).
-function faceRelief(x, y) {
-  const ax = Math.abs(x);
-  let dz = 0;
-  // nose: a ridge climbing out of frame, the tip, alar flares, nostril pits
-  dz += 0.5 * Math.exp(-((x / 0.55) ** 2)) * sstep(0.7, 1.4, y);
-  dz += 0.8 * g2(x, y - 1.7, 0.6, 0.55);
-  dz += 0.42 * g2(ax - 0.78, y - 1.18, 0.36, 0.3);
-  dz -= 0.3 * g2(ax - 0.4, y - 1.02, 0.17, 0.13);
-  // philtrum groove between nose and lip
-  dz -= 0.13 * Math.exp(-((x / 0.2) ** 2)) * sstep(0.45, 0.75, y) * (1 - sstep(0.95, 1.2, y));
-  // chin boss and the mentolabial crease above it
-  dz += 0.85 * g2(x, y + 2.0, 1.15, 0.85);
-  dz -= 0.2 * Math.exp(-(((y + 1.32) / 0.3) ** 2)) * Math.exp(-((x / 1.5) ** 2));
-  // cheek mass and nasolabial folds
-  dz += 0.55 * g2(ax - 3.3, y - 0.5, 1.8, 2.5);
-  dz -= 0.1 * g2(ax - 2.55, y + 0.2, 0.28, 1.2);
-  return dz;
-}
-
-const SKIN = new THREE.Color(0xd2a184);   // matches the shell's lip-roll skin
-const VERM = new THREE.Color(0xb05156);
-const FLUSH = new THREE.Color(0xc9836b);
-const STUBBLE = new THREE.Color(0xb18a6d);
-const NOSTRIL = new THREE.Color(0x49201a);
-const RIM = new THREE.Color(0x5c4234);
-
-function faceColor(x, y, v, tmp) {
-  const ax = Math.abs(x);
-  tmp.copy(VERM).lerp(SKIN, sstep(0.0, 0.12, v)); // vermilion ring at the lips
-  tmp.lerp(FLUSH, clamp(0.4 * g2(ax - 3.0, y - 0.6, 2.0, 2.4) + 0.3 * g2(x, y - 1.6, 0.8, 0.7), 0, 1));
-  tmp.lerp(STUBBLE, 0.4 * sstep(-0.7, -2.2, y));
-  tmp.lerp(NOSTRIL, clamp(1.4 * g2(ax - 0.4, y - 1.02, 0.18, 0.14), 0, 1));
-  tmp.lerp(RIM, 0.6 * sstep(0.72, 1.0, v)); // fade into the dark of the konoba
-  return tmp;
-}
-
-function buildFaceGeometry() {
-  const { nu, nv } = FACE;
-  const count = (nv + 1) * nu;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const weights = new Float32Array(count);
-  const tmp = new THREE.Color();
-
-  for (let iv = 0; iv <= nv; iv++) {
-    const v = iv / nv;
-    const ease = Math.pow(v, 1.2);
-    for (let iu = 0; iu < nu; iu++) {
-      const th = (iu / nu) * Math.PI * 2;
-      let cx = Math.cos(th), cy = Math.sin(th);
-      // superellipse — squarer mouth corners, like the shell's rings
-      cx = Math.sign(cx) * Math.pow(Math.abs(cx), 0.85);
-      cy = Math.sign(cy) * Math.pow(Math.abs(cy), 0.9);
-      const x = cx * lerp(FACE.holeRx, FACE.outRx, ease);
-      const y = cy * lerp(FACE.holeRy, FACE.outRy, ease) + FACE.outCy * ease;
-      let z = 6.32 - 2.9 * Math.pow(ease, 1.6);
-      z += faceRelief(x, y) * sstep(0.02, 0.12, v); // relief eases in off the lip ring
-
-      const k = iv * nu + iu;
-      positions[k * 3] = x;
-      positions[k * 3 + 1] = y;
-      positions[k * 3 + 2] = z;
-      faceColor(x, y, v, tmp);
-      colors[k * 3] = tmp.r; colors[k * 3 + 1] = tmp.g; colors[k * 3 + 2] = tmp.b;
-      // chin and jawline ride the mandible, fading out toward the ears
-      weights[k] = sstep(0.25, -0.55, y) * (1 - 0.6 * sstep(3.4, 7.2, Math.abs(x)));
-    }
-  }
-
-  const indices = [];
-  for (let iv = 0; iv < nv; iv++) {
-    for (let iu = 0; iu < nu; iu++) {
-      const a = iv * nu + iu;
-      const b = iv * nu + (iu + 1) % nu;
-      const c = a + nu, d = b + nu;
-      indices.push(a, b, c, b, d, c);
-    }
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setIndex(indices);
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  geo.userData.base = positions.slice();
-  geo.userData.jawWeights = weights;
-  return geo;
 }
 
 // ============================================================ DefendRound ==
@@ -200,25 +98,12 @@ export class DefendRound {
 
     this._launchTimer = 0;
     this._smackTimer = 0;
-    this._faceJaw = -1;
     this._v1 = new THREE.Vector3();
     this._v2 = new THREE.Vector3();
 
-    this.faceGeo = buildFaceGeometry();
-    const skinMat = new THREE.MeshPhysicalMaterial({
-      vertexColors: true, roughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.5,
-      sheen: 0.25, sheenColor: new THREE.Color(0xffc0a0), envMapIntensity: 0.35,
-      side: THREE.DoubleSide,
-    });
-    this.face = new THREE.Group();
-    const plate = new THREE.Mesh(this.faceGeo, skinMat);
-    plate.frustumCulled = false;
-    this.face.add(plate);
-    // candlelight from the guest's side so the face reads against the dark
-    const glow = new THREE.PointLight(0xffd9b8, 1.4, 9, 2);
-    glow.position.set(0, 0.6, 9.2);
-    this.face.add(glow);
-    this.face.visible = false;
+    // the dinner guest — the fully sculpted head the player wears
+    this.faceRig = buildGuestFace();
+    this.face = this.faceRig.group;
     scene.add(this.face);
   }
 
@@ -237,7 +122,6 @@ export class DefendRound {
     this.shake = 0.6;
     this.camPos.copy(OUT_POS);
     this.face.visible = true;
-    this._faceJaw = -1;
     this.jawTarget = MOUTH.maxJawAngle * 0.95;
     this.ui.defendBanner(true);
     this.audio.cough(1.2);
@@ -345,7 +229,7 @@ export class DefendRound {
     this.scene.add(mesh);
 
     // aimed at wherever your face is right now — move it or wear it
-    const T = 1.45 + Math.random() * 0.5;
+    const T = 1.7 + Math.random() * 0.6;
     const aim = this._v1.set(
       this.camPos.x + (Math.random() - 0.5) * 1.2,
       this.camPos.y + (Math.random() - 0.5) * 0.8,
@@ -508,7 +392,20 @@ export class DefendRound {
       }
     }
 
-    if (this.face.visible) this._deformFace();
+    if (this.face.visible) {
+      // the guest's eyes lock onto whichever morsel is closest to landing
+      let look = null, best = Infinity;
+      for (const f of this.foods) {
+        if (f.state !== 'fly') continue;
+        const d = this.camPos.z - f.mesh.position.z;
+        if (d > 0.5 && d < best) { best = d; look = f.mesh.position; }
+      }
+      this.faceRig.update(dt, {
+        jaw: this.mouth.state.jawAngle,
+        cough: this.coughPulse,
+        look: look || this.camPos,
+      });
+    }
   }
 
   // The guest's eye. Owns the camera while the round runs.
@@ -536,33 +433,5 @@ export class DefendRound {
     camera.position.copy(pos);
     camera.lookAt(look);
     this.camPos.copy(camera.position);
-  }
-
-  // The chin half of the face plate rides the mandible, like the shell.
-  _deformFace() {
-    const jaw = this.mouth.state.jawAngle;
-    if (Math.abs(jaw - this._faceJaw) < 0.0006) return;
-    this._faceJaw = jaw;
-    const pos = this.faceGeo.attributes.position;
-    const arr = pos.array;
-    const base = this.faceGeo.userData.base;
-    const weights = this.faceGeo.userData.jawWeights;
-    const pivotY = MOUTH.jawPivot.y, pivotZ = MOUTH.jawPivot.z;
-    for (let i = 0; i < pos.count; i++) {
-      const w = weights[i];
-      const bx = base[i * 3], by = base[i * 3 + 1], bz = base[i * 3 + 2];
-      if (w < 0.001) {
-        arr[i * 3] = bx; arr[i * 3 + 1] = by; arr[i * 3 + 2] = bz;
-        continue;
-      }
-      const ang = jaw * w;
-      const ca = Math.cos(ang), sa = Math.sin(ang);
-      const dy = by - pivotY, dz = bz - pivotZ;
-      arr[i * 3] = bx;
-      arr[i * 3 + 1] = pivotY + dy * ca - dz * sa;
-      arr[i * 3 + 2] = pivotZ + dy * sa + dz * ca;
-    }
-    pos.needsUpdate = true;
-    this.faceGeo.computeVertexNormals();
   }
 }
