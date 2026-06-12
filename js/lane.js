@@ -67,8 +67,8 @@ export class Lane {
     return at.cx + lane * at.hw * 0.45;
   }
 
-  // items: [{ type: 'word', t, p? } | { type: 'food', t, color?, warn? }
-  //         | { type: 'zone', t0, t1 } | { type: 'tick', t }]
+  // items: [{ type: 'word', t, p? } | { type: 'food', t, color?, warn?, inZone? }
+  //         | { type: 'zone', t0, t1, hot? } | { type: 'tick', t }]
   // visibility: 0 hidden, 1 full, fractions dim (bullet time)
   set(items, visibility) {
     this.items = items;
@@ -165,13 +165,18 @@ export class Lane {
       if (it.type !== 'zone') continue;
       const tA = clamp01(Math.max(it.t0, it.t1)), tB = clamp01(Math.min(it.t0, it.t1));
       if (Math.abs(this._at(tA).y - this._at(tB).y) < 4) continue;
-      const breathe = 0.75 + 0.25 * Math.sin(this.time * 5);
+      const breathe = 0.75 + 0.25 * Math.sin(this.time * (it.hot ? 14 : 5));
       this._band(tA, tB);
-      ctx.fillStyle = 'rgba(90, 220, 160, 0.20)';
+      ctx.fillStyle = it.hot ? 'rgba(120, 245, 180, 0.34)' : 'rgba(90, 220, 160, 0.18)';
       ctx.fill();
-      ctx.strokeStyle = `rgba(140, 245, 190, ${0.6 + 0.3 * breathe})`;
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = `rgba(150, 250, 195, ${(it.hot ? 0.8 : 0.55) + 0.2 * breathe})`;
+      ctx.lineWidth = it.hot ? 2.2 : 1.6;
+      if (it.hot) {
+        ctx.shadowColor = 'rgba(110, 250, 180, 0.9)';
+        ctx.shadowBlur = 8;
+      }
       ctx.stroke();
+      ctx.shadowBlur = 0;
       const mid = this._at((tA + tB) / 2);
       if (Math.abs(this._at(tA).y - this._at(tB).y) > 16) {
         ctx.shadowColor = 'rgba(0, 40, 20, 0.9)';
@@ -257,6 +262,15 @@ export class Lane {
       ctx.strokeStyle = 'rgba(255, 245, 235, 0.85)';
       ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(x, a.y, r, 0, 7); ctx.stroke();
+      // inside the chew zone: a green halo says THIS is the bite
+      if (it.inZone) {
+        ctx.strokeStyle = 'rgba(140, 250, 190, 0.95)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(110, 250, 180, 0.9)';
+        ctx.shadowBlur = 7;
+        ctx.beginPath(); ctx.arc(x, a.y, r + 3.5, 0, 7); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
     }
 
     // ------------------------------------------------------- strike line

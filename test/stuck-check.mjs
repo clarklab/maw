@@ -41,7 +41,8 @@ await page.waitForTimeout(2000);
 // Force a stuck morsel
 await page.evaluate(() => {
   const g = window.MAW.game;
-  g.nextStuckAt = 1;
+  g.zoneHalf = 0; // every bite is sloppy
+  g.misChews = g.stickAfterMisChews - 1; // the next one wedges in
   g._spawnFood();
   g.foods[0].mesh.position.set(0, 0, 3);
   g._chomp();

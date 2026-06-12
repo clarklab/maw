@@ -283,10 +283,10 @@ window.addEventListener('keyup', (e) => {
 const EXPLAINER_STEPS = [
   { text: 'Dinner in Dalmatia. You are the mouth — and the story of your travels simply must be told, mid-bite.' },
   {
-    text: 'Your words ride the board to your lips — be open when each arrives. TAP to bite food, and catch it inside the sliding green zone for a CLEAN BITE.',
+    text: 'Your words ride the board to your lips — be open when each arrives. TAP to bite food inside the sliding green zone. Bite sloppy — outside it — three times, and something wedges in your teeth.',
     lane: true,
   },
-  { text: 'Something stuck in your teeth? HOLD — the world slows — and circle it with a second finger. You have 3 seconds: picked clean, the green zone grows. Festered, it shrinks.' },
+  { text: 'Something stuck? HOLD — the world slows — and circle it with a second finger. You have 3 seconds: picked clean, the green zone grows. Festered, it shrinks.' },
 ];
 const explainerEl = document.getElementById('explainer');
 const expText = document.getElementById('exp-text');

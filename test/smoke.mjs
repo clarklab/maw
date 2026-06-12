@@ -140,7 +140,7 @@ geometryFinite(scene, 'scene after 40s of play');
 // (fresh game, and forbid sticking — holding with food stuck enters bullet
 // time instead of suffocating)
 game.start();
-game.nextStuckAt = Infinity;
+game.stickAfterMisChews = Infinity;
 game.pressed = true;
 let forced = false;
 for (let f = 0; f < 600; f++) {
@@ -152,7 +152,7 @@ game.pressed = false;
 
 // --- the sliding chew zone
 game.start();
-game.nextStuckAt = Infinity;
+game.stickAfterMisChews = Infinity;
 game._spawnFood();
 game.foods[0].mesh.position.set(0, 0, 3);
 game.update(1 / 60); // sweeps the zone and publishes it to the lane
@@ -163,13 +163,16 @@ game._chomp();
 check('clean bite scores the bonus', game.score >= zoneScore + 15); // 5 chomp + 10 clean
 check('clean bite chews double', game.foods.length === 0 || game.foods[0].chews !== 1);
 
-// a stuck morsel left to fester shrinks the zone
+// sloppy bites (outside the zone) are what wedge food in the teeth
 game.start();
-game.nextStuckAt = 1;
+game.zoneHalf = 0;  // every bite is sloppy
+game.misChews = game.stickAfterMisChews - 1; // the next one wedges in
 game._spawnFood();
 game.foods[0].mesh.position.set(0, 0, 3);
 game._chomp();
-check('morsel stuck for the fester test', !!game.stuck);
+check('third sloppy bite sticks the morsel', !!game.stuck);
+check('mis-chew counter resets after sticking', game.misChews === 0);
+game.zoneHalf = 0.12; // restore a real zone so the shrink is measurable
 const halfBefore = game.zoneHalf;
 // (generous loop — crisis slow-mo legitimately stretches the 3s window)
 for (let f = 0; f < 60 * 9 && game.stuck; f++) game.update(1 / 60);
@@ -178,7 +181,8 @@ check('festering shrinks the chew zone', game.zoneHalf < halfBefore);
 
 // --- food stuck in teeth + bullet time
 game.start();
-game.nextStuckAt = 1; // force the very next chomped piece to stick
+game.zoneHalf = 0;
+game.misChews = game.stickAfterMisChews - 1; // force the next bite to stick
 game._spawnFood();
 game.foods[0].mesh.position.set(0, 0, 3); // right between the teeth
 game._chomp();
