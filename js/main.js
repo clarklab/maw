@@ -283,10 +283,10 @@ window.addEventListener('keyup', (e) => {
 const EXPLAINER_STEPS = [
   { text: 'Dinner in Dalmatia. You are the mouth — and the story of your travels simply must be told, mid-bite.' },
   {
-    text: 'Your words ride the board to your lips — be open when each arrives. TAP to bite when food makes its run, and chew in the green gaps.',
+    text: 'Your words ride the board to your lips — be open when each arrives. TAP to bite food, and catch it inside the sliding green zone for a CLEAN BITE.',
     lane: true,
   },
-  { text: 'Something stuck in your teeth? HOLD a finger — the world slows — then circle it with a second. The table is watching.' },
+  { text: 'Something stuck in your teeth? HOLD — the world slows — and circle it with a second finger. You have 3 seconds: picked clean, the green zone grows. Festered, it shrinks.' },
 ];
 const explainerEl = document.getElementById('explainer');
 const expText = document.getElementById('exp-text');
@@ -304,8 +304,8 @@ function showExplainerStep(i) {
   inner.classList.add('pop');
 }
 
-// A looping six-and-a-half-second demo chart: a phrase of words, a green
-// bite window with a tomato making its run, then the next phrase.
+// A looping six-and-a-half-second demo chart: a phrase of word-notes, the
+// sliding green chew zone sweeping the board, and a tomato making its run.
 function explainerDemo(now) {
   const clk = now % 6.5;
   const H = 5;
@@ -316,10 +316,10 @@ function explainerDemo(now) {
   };
   word(1.0, 'We', 1); word(1.45, 'sailed', 1); word(1.8, 'out', 1);
   word(2.15, 'of', 1); word(2.5, 'Split', 1);
-  if (4.1 - clk > 0 && 2.9 - clk < H) {
-    items.push({ type: 'gap', t0: 1 - (2.9 - clk) / H, t1: 1 - (4.1 - clk) / H });
-  }
   word(4.45, 'at', 2); word(4.8, 'dawn,', 2);
+  // the kicking-meter chew zone, sweeping up and down the board
+  const zc = 0.5 + 0.32 * Math.sin(now * 1.05);
+  items.push({ type: 'zone', t0: zc - 0.11, t1: zc + 0.11 });
   const eta = 3.5 - clk;
   if (eta > -0.1 && eta < H) {
     items.push({ type: 'food', t: 1 - eta / H, color: '#d84a30', warn: eta < 1.2 ? 1 - eta / 1.2 : 0 });
@@ -467,6 +467,13 @@ function frame() {
 
 // debug / test handle
 window.MAW = { game, mouth, lasso, lane, camera, audio, voice, defend };
+
+// Warm up the bonus round behind the loading veil: compile() walks even
+// invisible meshes, so the guest face's shaders build now (against the
+// final light count — its lights are already in the scene) instead of
+// hitching the first cough. Textures upload here too.
+renderer.compile(scene, camera);
+for (const t of defend.faceRig.textures) renderer.initTexture(t);
 
 ui.ready();
 frame();

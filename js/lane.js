@@ -3,8 +3,9 @@
 // and everything heading for the lips slides DOWN it, growing as it comes,
 // toward a glowing strike line. Two lanes: words (gold, left) and food
 // (red, right), each with its own receptor on the strike line. Phrase runs
-// are sustain ribbons; the breath gaps between them are BITE sections
-// highlighted across the whole board. Persistent while playing.
+// are sustain ribbons, and the green CHEW zone sweeps the board like a
+// kicking meter — bite food while it crosses the band. Persistent while
+// playing.
 
 const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -66,8 +67,8 @@ export class Lane {
     return at.cx + lane * at.hw * 0.45;
   }
 
-  // items: [{ type: 'word', t, p?, word? } | { type: 'food', t, color?, warn? }
-  //         | { type: 'gap', t0, t1 } | { type: 'tick', t }]
+  // items: [{ type: 'word', t, p? } | { type: 'food', t, color?, warn? }
+  //         | { type: 'zone', t0, t1 } | { type: 'tick', t }]
   // visibility: 0 hidden, 1 full, fractions dim (bullet time)
   set(items, visibility) {
     this.items = items;
@@ -158,25 +159,27 @@ export class Lane {
       ctx.stroke();
     }
 
-    // ------------------------------------------------ BITE sections
+    // ----------------------------------------- the sliding CHEW zone
+    // A kicking-meter band sweeping the board: bite food while it's inside.
     for (const it of this.items) {
-      if (it.type !== 'gap') continue;
-      const tA = Math.max(it.t0, it.t1), tB = Math.min(it.t0, it.t1);
-      if (Math.abs(this._at(tA).y - this._at(tB).y) < 6) continue;
+      if (it.type !== 'zone') continue;
+      const tA = clamp01(Math.max(it.t0, it.t1)), tB = clamp01(Math.min(it.t0, it.t1));
+      if (Math.abs(this._at(tA).y - this._at(tB).y) < 4) continue;
+      const breathe = 0.75 + 0.25 * Math.sin(this.time * 5);
       this._band(tA, tB);
-      ctx.fillStyle = 'rgba(90, 220, 160, 0.22)';
+      ctx.fillStyle = 'rgba(90, 220, 160, 0.20)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(140, 245, 190, 0.85)';
+      ctx.strokeStyle = `rgba(140, 245, 190, ${0.6 + 0.3 * breathe})`;
       ctx.lineWidth = 1.6;
       ctx.stroke();
       const mid = this._at((tA + tB) / 2);
-      if (Math.abs(this._at(tA).y - this._at(tB).y) > 18) {
+      if (Math.abs(this._at(tA).y - this._at(tB).y) > 16) {
         ctx.shadowColor = 'rgba(0, 40, 20, 0.9)';
         ctx.shadowBlur = 4;
-        ctx.fillStyle = 'rgba(200, 255, 225, 1)';
+        ctx.fillStyle = `rgba(200, 255, 225, ${0.7 + 0.3 * breathe})`;
         ctx.font = `700 ${Math.round(8 + 4 * mid.s)}px Futura, "Avenir Next", sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText('B I T E', mid.cx, mid.y + 3.5);
+        ctx.fillText('C H E W', mid.cx, mid.y + 3.5);
         ctx.shadowBlur = 0;
       }
     }
@@ -209,7 +212,7 @@ export class Lane {
     if (runStart && prev) ribbon(runStart, prev);
 
     // ------------------------------------------------------------- notes
-    let labeled = 0;
+    // (no text labels — the big escaping word in the scene carries the story)
     for (const it of this.items) {
       if (it.type !== 'word') continue;
       const a = this._at(it.t);
@@ -228,17 +231,6 @@ export class Lane {
       ctx.strokeStyle = 'rgba(80, 40, 0, 0.6)';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(x, a.y, r, 0, 7); ctx.stroke();
-      // the next few words, readable beside the board
-      if (it.word && labeled < 4 && it.t > 0.2) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-        ctx.shadowBlur = 5;
-        ctx.fillStyle = `rgba(255, 240, 214, ${0.55 + 0.45 * a.s})`;
-        ctx.font = `italic ${Math.round(9 + 6 * a.s)}px Georgia, serif`;
-        ctx.textAlign = 'left';
-        ctx.fillText(it.word, a.cx + a.hw + 7, a.y + 4);
-        ctx.shadowBlur = 0;
-        labeled++;
-      }
     }
 
     for (const it of this.items) {

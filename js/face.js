@@ -594,13 +594,17 @@ export function buildGuestFace() {
   group.add(collar);
 
   // candlelight from the guest's side + a cool fill to shape the features
-  // (physical falloff — intensities are candela at ~6 units range)
-  const glow = new THREE.PointLight(0xffd9b8, 55, 18, 2);
+  // (physical falloff — intensities are candela at ~6 units range).
+  // They live in their own always-visible group: toggling lights changes the
+  // scene's light count and forces every shader to rebuild, so instead they
+  // idle at a whisper and setLit() turns them up for the round.
+  const lights = new THREE.Group();
+  const glow = new THREE.PointLight(0xffd9b8, 0.001, 18, 2);
   glow.position.set(0, 1.4, 11.5);
-  group.add(glow);
-  const fill = new THREE.PointLight(0x9fb6d8, 18, 16, 2);
+  lights.add(glow);
+  const fill = new THREE.PointLight(0x9fb6d8, 0.001, 16, 2);
   fill.position.set(-4.5, 3.5, 10);
-  group.add(fill);
+  lights.add(fill);
 
   group.visible = false;
 
@@ -640,6 +644,13 @@ export function buildGuestFace() {
   return {
     group,
     plateGeo,
+    lights,
+    textures: [skinTex, irisTex],
+
+    setLit(on) {
+      glow.intensity = on ? 55 : 0.001;
+      fill.intensity = on ? 18 : 0.001;
+    },
 
     // dt is real time; jaw in radians, cough 0..1, look is a world point.
     update(dt, { jaw = 0, cough = 0, look = null } = {}) {

@@ -101,10 +101,13 @@ export class DefendRound {
     this._v1 = new THREE.Vector3();
     this._v2 = new THREE.Vector3();
 
-    // the dinner guest — the fully sculpted head the player wears
+    // the dinner guest — the fully sculpted head the player wears.
+    // Its lights stay in the scene permanently (a light-count change would
+    // recompile every shader mid-game); setLit just turns them up.
     this.faceRig = buildGuestFace();
     this.face = this.faceRig.group;
     scene.add(this.face);
+    scene.add(this.faceRig.lights);
   }
 
   get active() { return this.phase === 'active'; }
@@ -122,6 +125,7 @@ export class DefendRound {
     this.shake = 0.6;
     this.camPos.copy(OUT_POS);
     this.face.visible = true;
+    this.faceRig.setLit(true);
     this.jawTarget = MOUTH.maxJawAngle * 0.95;
     this.ui.defendBanner(true);
     this.audio.cough(1.2);
@@ -134,6 +138,7 @@ export class DefendRound {
     this.lean = 0;
     this._removeFoods();
     this.face.visible = false;
+    this.faceRig.setLit(false);
     this.ui.defendBanner(false);
   }
 
@@ -388,6 +393,7 @@ export class DefendRound {
       if (this.t >= EXIT_S) {
         this.phase = 'idle';
         this.face.visible = false;
+        this.faceRig.setLit(false);
         this._removeFoods();
       }
     }

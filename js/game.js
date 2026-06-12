@@ -136,6 +136,13 @@ export class Game {
     this.laneItems = [];
     this.laneEvents = [];
 
+    // the sliding CHEW zone — a kicking-meter band sweeping the exit lane.
+    // Bite food while it's inside for a clean bite; picking stuck food
+    // grows the band, letting it fester shrinks it.
+    this.zonePhase = Math.random() * Math.PI * 2;
+    this.zoneHalf = 0.11;
+    this.zoneCenter = 0.5;
+
     // performance mode: the narration is the timeline, words are notes
     this.mode = 'classic';
     this.storyClock = -2.2;
@@ -199,6 +206,8 @@ export class Game {
     this.holdTime = 0;
     this.chompedCount = 0;
     this.nextStuckAt = 5 + ((Math.random() * 6) | 0);
+    this.zonePhase = Math.random() * Math.PI * 2;
+    this.zoneHalf = 0.11;
     if (this.defend) this.defend.reset();
     this.defendDone = false;
     // the coughing fit strikes somewhere past the first third of the story
@@ -614,6 +623,7 @@ export class Game {
 
     let bit = false;
     let bitSpec = null;
+    let cleanBite = false;
     for (let i = this.foods.length - 1; i >= 0; i--) {
       const f = this.foods[i];
       const p = f.mesh.position;
@@ -630,6 +640,13 @@ export class Game {
         f.vel.set((Math.random() - 0.5) * 3, 2.5 + Math.random() * 2, -6 - Math.random() * 4);
         f.spin.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
         this.score += 5;
+        // CLEAN BITE — caught it inside the sliding chew zone: counts double
+        const laneT = clamp((p.z - 0.4) / (MOUTH.lipsZ - 0.4), 0, 1);
+        if (Math.abs(laneT - this.zoneCenter) <= this.zoneHalf) {
+          cleanBite = true;
+          f.chews++;
+          this.score += 10;
+        }
         if (f.chews >= f.spec.chewsToSwallow) {
           f.state = 'swallowing';
           f.swallowT = 0;
@@ -638,6 +655,7 @@ export class Game {
     }
     if (bit) {
       this.audio.crunch(0.7);
+      if (cleanBite) this.ui.callout('CLEAN BITE · +10');
       this.ui.setScore(this.score);
       // every so often, a piece wedges itself between the teeth
       if (!this.stuck && this.chompedCount >= this.nextStuckAt && this.state === 'playing') {
@@ -664,10 +682,27 @@ export class Game {
     mesh.castShadow = true;
     this.scene.add(mesh);
 
-    this.stuck = { mesh, spec, highlight: false };
+    this.stuck = { mesh, spec, highlight: false, timer: 3.0 };
     this.ui.callout('STUCK IN YOUR TEETH', true);
-    this.ui.stuckTip('something’s stuck · long-press to focus');
+    this.ui.stuckTip('something’s stuck · 3s to pick it · long-press to focus');
     this.audio.stuck();
+  }
+
+  // The pick window closed: the morsel works itself loose, straight down
+  // the hatch, and the chew zone shrinks for the indignity.
+  _expireStuck() {
+    const s = this.stuck;
+    if (!s) return;
+    this.stuck = null;
+    this._burst(s.mesh.position, s.spec.juice, 8);
+    this.scene.remove(s.mesh);
+    s.mesh.material.dispose();
+    this.audio.gulp();
+    this.zoneHalf = Math.max(0.055, this.zoneHalf - 0.035);
+    this.ui.callout('FESTERED · CHEW ZONE SHRINKS', true);
+    this.ui.stuckTip(null);
+    this.nextStuckAt = this.chompedCount + 5 + ((Math.random() * 6) | 0);
+    this._exitBulletTime();
   }
 
   _enterBulletTime() {
@@ -702,8 +737,9 @@ export class Game {
     s.mesh.material.dispose();
     this.audio.poof();
     this.score += 50;
+    this.zoneHalf = Math.min(0.2, this.zoneHalf + 0.045);
     this.ui.setScore(this.score);
-    this.ui.callout('PICKED CLEAN · +50');
+    this.ui.callout('PICKED CLEAN · +50 · CHEW ZONE GROWS');
     this.nextStuckAt = this.chompedCount + 5 + ((Math.random() * 6) | 0);
     this._exitBulletTime();
   }
@@ -854,7 +890,13 @@ export class Game {
     this._updateParticles(gdt);
     this.ui.fadeHintMaybe();
 
-    // the stuck morsel smoulders in bullet time, flares when highlighted
+    // the stuck morsel smoulders in bullet time, flares when highlighted —
+    // and festers on a clock. Bullet time all but freezes the countdown,
+    // so the skill is reacting fast, then picking calmly in slow-mo.
+    if (this.stuck && !this.stuck.highlight && this.state === 'playing' && !defending) {
+      this.stuck.timer -= gdt;
+      if (this.stuck.timer <= 0) this._expireStuck();
+    }
     if (this.stuck) {
       const m = this.stuck.mesh.material;
       if (this.stuck.highlight) {
@@ -874,6 +916,16 @@ export class Game {
     let nextWordIn = Infinity;
     this.laneItems.length = 0;
     if (this.state === 'playing' && !defending) {
+      // the chew zone sweeps the board like a kicking meter (it rides the
+      // dilated clock, so bullet time and crises slow the sweep too)
+      this.zonePhase += gdt * 1.05;
+      const amp = Math.max(0.5 - this.zoneHalf - 0.05, 0);
+      this.zoneCenter = 0.5 + amp * Math.sin(this.zonePhase);
+      this.laneItems.push({
+        type: 'zone',
+        t0: this.zoneCenter - this.zoneHalf,
+        t1: this.zoneCenter + this.zoneHalf,
+      });
       if (this.mode === 'performance') {
         // the note highway: upcoming words for the next few seconds,
         // beamed by phrase, with the breath gaps marked as bite windows
@@ -882,16 +934,8 @@ export class Game {
         for (let k = this.wordIndex; k < tm.length; k++) {
           const eta = tm[k].s - this.storyClock;
           if (eta > H) break;
-          this.laneItems.push({ type: 'word', t: 1 - eta / H, p: tm[k].p, word: WORDS[k] });
+          this.laneItems.push({ type: 'word', t: 1 - eta / H, p: tm[k].p });
           if (eta < nextWordIn) nextWordIn = eta;
-          // a phrase break after this word = a safe window to bite
-          if (k + 1 < tm.length && tm[k + 1].p !== tm[k].p) {
-            this.laneItems.push({
-              type: 'gap',
-              t0: 1 - (tm[k].e - this.storyClock) / H,
-              t1: 1 - (tm[k + 1].s - this.storyClock) / H,
-            });
-          }
         }
         wordCue = nextWordIn < 0.55 ? sstep(0.55, 0.1, nextWordIn) : 0;
         // moving second-gridlines so the conveyor speed reads at a glance
@@ -901,11 +945,7 @@ export class Game {
         }
       } else if (this.activeWord && !this.activeWord.muffled) {
         wordCue = sstep(0.62, 0.9, this.activeWord.t);
-        this.laneItems.push({
-          type: 'word',
-          t: clamp(this.activeWord.t, 0, 1),
-          word: this.activeWord.text,
-        });
+        this.laneItems.push({ type: 'word', t: clamp(this.activeWord.t, 0, 1) });
       }
       for (const f of this.foods) {
         if (f.state !== 'loose') continue;

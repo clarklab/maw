@@ -28,9 +28,13 @@ npm run serve     # python3 -m http.server 8000
   audibly into your bite and the streak dies. Natural speech breathes in
   phrases, and the **gaps between phrases are your safe windows to chew**.
 - **The exit lane** (left edge) is the note highway: gold word-notes ride
-  toward a lip-shaped gate, beamed together by phrase; mint brackets mark the
-  bite windows; food rides the parallel rail with warning rings before it
-  lunges. Bullet time slows the narrator's actual voice, pitch and all.
+  toward a lip-shaped gate, beamed together by phrase; food rides the
+  parallel rail with warning rings before it lunges. Bullet time slows the
+  narrator's actual voice, pitch and all.
+- **The CHEW zone** — a green band that sweeps up and down the lane like a
+  kicking meter. Land your bite while the food is inside it for a **CLEAN
+  BITE**: +10 and the chomp counts double toward swallowing. Picking stuck
+  food out of your teeth grows the zone; letting it fester shrinks it.
 - **Food** (olives, Pag cheese, figs, bread, cherry tomatoes) gets jostled
   toward the light every time you talk. Bite down to stop it. Chew it enough
   times and you can swallow it for points.
@@ -47,9 +51,12 @@ npm run serve     # python3 -m http.server 8000
   the table pretends not to have noticed (+100). The story holds its
   breath; the coughing and lip-smacking, regrettably, do not.
 - Every handful of chomps, a morsel gets **stuck in your teeth** (no streak
-  builds while it's there). Hold one finger to slip into slow-mo **bullet
-  time**, then circle the morsel with a *second* finger — your glowing
-  pencil loop snaps onto its exact silhouette and flicks it free (+50).
+  builds while it's there) — and you have **3 seconds** before it festers.
+  Hold one finger to slip into slow-mo **bullet time** (which all but
+  freezes the countdown), then circle the morsel with a *second* finger —
+  your glowing pencil loop snaps onto its exact silhouette and flicks it
+  free (+50, and the chew zone grows). Miss the window and it festers:
+  swallowed whole, chew zone shrunk.
 
 ## How it's built
 
