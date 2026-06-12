@@ -30,11 +30,11 @@ export class Lane {
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
     // board geometry: near edge (strike line) wide at the bottom,
-    // far edge narrow up top, leaning slightly left into the corner
+    // far edge narrow up top — a symmetric trapezoid, dead-on perspective
     this.yNear = this.h * 0.72;
     this.yFar = this.h * 0.27;
     this.xNear = 78;
-    this.xFar = 44;
+    this.xFar = 78;
     this.wNear = 124;
     this.wFar = 34;
   }
