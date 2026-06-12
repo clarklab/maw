@@ -360,10 +360,10 @@ function frame() {
   lasso.update(rawDt);
   lasso.render();
 
-  // the exit lane telegraphs what's riding toward the lips
+  // the exit highway is persistent during play, dimmed in bullet time
   for (const kind of game.laneEvents) lane.flash(kind);
   game.laneEvents.length = 0;
-  lane.set(game.laneItems, game.state === 'playing' && !game.bulletTime);
+  lane.set(game.laneItems, game.state === 'playing' ? (game.bulletTime ? 0.35 : 1) : 0);
   lane.update(rawDt);
   lane.render();
 }
