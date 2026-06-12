@@ -96,6 +96,7 @@ const sstep = (a, b, x) => {
 const STUCK_ANGLES = [0.16, 0.34, 0.52];
 const STUCK_HOLD = 0.55;        // seconds of holding before bullet time
 const BULLET_SCALE = 0.12;      // how slow bullet time runs
+const LANE_HORIZON = 5;         // seconds of upcoming notes on the exit lane
 
 // =================================================================== Game ==
 
@@ -133,6 +134,14 @@ export class Game {
     this.timeScale = 1;
     this.endTimer = -1;
     this.laneItems = [];
+    this.laneEvents = [];
+
+    // performance mode: the narration is the timeline, words are notes
+    this.mode = 'classic';
+    this.storyClock = -2.2;
+    this.narrationStarted = false;
+    this.missedWords = 0;
+    this._lastMuffleAt = -10;
 
     // food stuck in the teeth + bullet time
     this.chompedCount = 0;
@@ -187,6 +196,18 @@ export class Game {
     this.ui.setScore(0);
     this.ui.setManners(3);
     this.ui.showHUD();
+
+    // If the timed narration is loaded, the story plays at true spoken
+    // cadence and each word is a note gated on the jaw. Otherwise the
+    // classic one-word-at-a-time flight runs.
+    const tm = this.audio.narrationTimings ? this.audio.narrationTimings() : null;
+    const ready = this.audio.narrationReady ? this.audio.narrationReady() : false;
+    this.mode = (ready === true && tm && Array.isArray(tm.words)
+      && tm.words.length === WORDS.length) ? 'performance' : 'classic';
+    this.storyClock = -2.2; // lead-in: the first notes ride down the lane
+    this.narrationStarted = false;
+    this.missedWords = 0;
+    this.laneEvents.length = 0;
   }
 
   // ------------------------------------------------------------ word logic
@@ -220,8 +241,87 @@ export class Game {
     }
   }
 
+  // ---------------------------------------------- performance (timed) mode
+
+  // The narration plays continuously at spoken cadence; each word gates on
+  // the jaw at its timestamp. Open = the word escapes. Closed = it smothers
+  // audibly in the narration and the streak dies.
+  _updatePerformance(dt) {
+    const tm = this.audio.narrationTimings().words;
+    this.storyClock += dt;
+    if (!this.narrationStarted && this.storyClock >= 0) {
+      this.narrationStarted = true;
+      this.audio.startNarration();
+    }
+    if (this.narrationStarted) this.audio.setNarrationRate(this.timeScale);
+
+    while (this.wordIndex < tm.length && this.storyClock >= tm[this.wordIndex].s) {
+      this._performWord(this.wordIndex, tm[this.wordIndex]);
+      this.wordIndex++;
+    }
+
+    if (this.wordIndex >= tm.length && this.endTimer < 0
+      && this.storyClock > tm[tm.length - 1].e + 1.2) {
+      this.endTimer = 1.4;
+    }
+  }
+
+  _performWord(i, t) {
+    const text = WORDS[i];
+    const chapter = chapterAt(i);
+    if (chapter) {
+      this.ui.chapterToast(chapter.name);
+      this.audio.chime();
+    }
+
+    const { tex, aspect } = wordTexture(text);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false, depthTest: true,
+    }));
+    const scale = 0.78 + Math.min(text.length, 9) * 0.015;
+    sprite.scale.set(aspect * scale, scale, 1);
+    const wobble = Math.random() * Math.PI * 2;
+    this.scene.add(sprite);
+
+    const ap = this.mouth.aperture(this.jawAngle);
+    if (ap.open01 > 0.34) {
+      // ON THE BEAT — the word sails out of the open mouth
+      this._wordPos(0.93, sprite.position, wobble);
+      this.ui.appendWord(text);
+      this.score += 10 * this.streak;
+      this.streak = Math.min(this.streak + 1, 5);
+      this.ui.setScore(this.score);
+      this.audio.wordPass();
+      this.mouth.kickUvula(0.8, 0.2);
+      this.escapees.push({
+        mesh: sprite, kind: 'word', life: 1.4,
+        vel: new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.6, 9),
+      });
+      this.laneEvents.push('hit');
+    } else {
+      // SMOTHERED — the narration ducks for the word's length
+      this.missedWords++;
+      this.streak = 1;
+      this._wordPos(0.7, sprite.position, wobble);
+      sprite.material.opacity = 0.85;
+      this.audio.muffled();
+      this.audio.duckNarration((t.e - t.s + 0.15) / Math.max(this.timeScale, 0.2));
+      this.mouth.kickUvula(1.4, 0.3);
+      this.shake = Math.max(this.shake, 0.3);
+      if (this.storyClock - this._lastMuffleAt > 1.4) {
+        this.ui.callout('MMMPH', true);
+        this._lastMuffleAt = this.storyClock;
+      }
+      this.escapees.push({
+        mesh: sprite, kind: 'word', life: 0.7,
+        vel: new THREE.Vector3((Math.random() - 0.5) * 1.2, -1.8, -2.6),
+      });
+      this.laneEvents.push('miss');
+    }
+  }
+
   // The word's flight path: larynx → over the tongue → out through the lips.
-  _wordPos(t, out) {
+  _wordPos(t, out, wobble = this.activeWord ? this.activeWord.wobble : 0) {
     const p0 = new THREE.Vector3(0, -0.9, -1.5);
     const p1 = new THREE.Vector3(0, 0.6, 0.6);
     const p2 = new THREE.Vector3(0, 0.1, 4.1);
@@ -233,8 +333,8 @@ export class Game {
       .addScaledVector(p1, 3 * it * it * t)
       .addScaledVector(p2, 3 * it * t * t)
       .addScaledVector(p3, t * t * t);
-    out.x += Math.sin(t * 9 + this.activeWord.wobble) * 0.35 * (1 - t);
-    out.y += Math.sin(t * 13 + this.activeWord.wobble * 2) * 0.1;
+    out.x += Math.sin(t * 9 + wobble) * 0.35 * (1 - t);
+    out.y += Math.sin(t * 13 + wobble * 2) * 0.1;
     return out;
   }
 
@@ -717,7 +817,8 @@ export class Game {
     // the world runs on dilated time; the jaw and inputs stay realtime
     const gdt = dt * this.timeScale;
     if (this.state === 'playing') {
-      this._updateWord(gdt);
+      if (this.mode === 'performance') this._updatePerformance(gdt);
+      else this._updateWord(gdt);
       this._updateFood(gdt);
     }
     this._updateParticles(gdt);
@@ -740,9 +841,35 @@ export class Game {
     // red below = food is closing on your lips (BITE) — and the exit-lane
     // items that ride the rhythm track toward the lips
     let wordCue = 0, foodCue = 0;
+    let nextWordIn = Infinity;
     this.laneItems.length = 0;
     if (this.state === 'playing') {
-      if (this.activeWord && !this.activeWord.muffled) {
+      if (this.mode === 'performance') {
+        // the note highway: upcoming words for the next few seconds,
+        // beamed by phrase, with the breath gaps marked as bite windows
+        const tm = this.audio.narrationTimings().words;
+        const H = LANE_HORIZON;
+        for (let k = this.wordIndex; k < tm.length; k++) {
+          const eta = tm[k].s - this.storyClock;
+          if (eta > H) break;
+          this.laneItems.push({ type: 'word', t: 1 - eta / H, p: tm[k].p });
+          if (eta < nextWordIn) nextWordIn = eta;
+          // a phrase break after this word = a safe window to bite
+          if (k + 1 < tm.length && tm[k + 1].p !== tm[k].p) {
+            this.laneItems.push({
+              type: 'gap',
+              t0: 1 - (tm[k].e - this.storyClock) / H,
+              t1: 1 - (tm[k + 1].s - this.storyClock) / H,
+            });
+          }
+        }
+        wordCue = nextWordIn < 0.55 ? sstep(0.55, 0.1, nextWordIn) : 0;
+        // moving second-gridlines so the conveyor speed reads at a glance
+        for (let sec = Math.ceil(this.storyClock); sec - this.storyClock <= H; sec++) {
+          if (sec - this.storyClock < 0) continue;
+          this.laneItems.push({ type: 'tick', t: 1 - (sec - this.storyClock) / H });
+        }
+      } else if (this.activeWord && !this.activeWord.muffled) {
         wordCue = sstep(0.62, 0.9, this.activeWord.t);
         this.laneItems.push({ type: 'word', t: clamp(this.activeWord.t, 0, 1) });
       }
@@ -768,7 +895,10 @@ export class Game {
 
     // crisis slow-mo: word and food both near the exit
     let crisis = false;
-    if (this.activeWord && this.activeWord.t > 0.7 && !this.activeWord.muffled) {
+    const wordImminent = this.mode === 'performance'
+      ? nextWordIn < 0.6
+      : !!(this.activeWord && this.activeWord.t > 0.7 && !this.activeWord.muffled);
+    if (wordImminent) {
       for (const f of this.foods) {
         if (f.mesh.position.z > 4.2) { crisis = true; break; }
       }
@@ -782,13 +912,18 @@ export class Game {
       if (this.endTimer <= 0) {
         const won = this.wordIndex >= WORDS.length;
         this.state = won ? 'won' : 'lost';
-        const lines = won
+        let lines = won
           ? WIN_LINES[(Math.random() * WIN_LINES.length) | 0]
           : LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0];
+        if (this.mode === 'performance') {
+          lines += ` ${WORDS.length - this.missedWords} of ${WORDS.length} words made it out.`;
+        }
         this._exitBulletTime();
         this.ui.stuckTip(null);
+        this.audio.stopStory();
         this.ui.showEnd(won, lines, won ? STORY.replace(/\s+/g, ' ') : '', this.score);
-        if (won) this.audio.playStory(); // the table hears the whole telling
+        // in performance mode the table already heard the whole telling
+        if (won && this.mode !== 'performance') this.audio.playStory();
       }
     }
 

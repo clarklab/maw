@@ -361,6 +361,8 @@ function frame() {
   lasso.render();
 
   // the exit lane telegraphs what's riding toward the lips
+  for (const kind of game.laneEvents) lane.flash(kind);
+  game.laneEvents.length = 0;
   lane.set(game.laneItems, game.state === 'playing' && !game.bulletTime);
   lane.update(rawDt);
   lane.render();

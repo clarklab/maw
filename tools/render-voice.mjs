@@ -103,14 +103,69 @@ for (let i = 0; i < WORDS.length; i++) {
 }
 console.log(`\n  words done — ${fileFor.size} unique clips (${rendered} rendered, ${skipped} already present) for ${WORDS.length} tokens`);
 
-// ---- the whole story as one telling
+// ---- the whole story as one telling, WITH word timestamps.
+// The game's performance mode plays this continuously at natural spoken
+// cadence and gates each word on the player's jaw at its timestamp.
 const storyFile = join(OUT, 'story.mp3');
-if (await exists(storyFile)) {
-  console.log('  story.mp3 already present');
+const timingsFile = join(OUT, 'timings.json');
+if (await exists(storyFile) && await exists(timingsFile)) {
+  console.log('  story.mp3 + timings.json already present');
 } else {
-  console.log('  rendering full story…');
-  await writeFile(storyFile, await tts(STORY.replace(/\s+/g, ' '), STORY_FORMAT, STORY_SETTINGS));
-  console.log('  story.mp3 done');
+  console.log('  rendering full story with timestamps…');
+  const text = STORY.replace(/\s+/g, ' ');
+  let res;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/with-timestamps?output_format=${STORY_FORMAT}`,
+      {
+        method: 'POST',
+        headers: { 'xi-api-key': KEY, 'content-type': 'application/json' },
+        body: JSON.stringify({ text, model_id: MODEL, voice_settings: STORY_SETTINGS }),
+      }
+    );
+    if (res.ok) break;
+    if (res.status === 429 || res.status >= 500) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      continue;
+    }
+    throw new Error(`TTS with-timestamps ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+  const data = await res.json();
+  await writeFile(storyFile, Buffer.from(data.audio_base64, 'base64'));
+
+  // collapse the character alignment into per-word [start, end]
+  const al = data.alignment;
+  const starts = al.character_start_times_seconds;
+  const ends = al.character_end_times_seconds;
+  const chars = al.characters;
+  const words = [];
+  let s = -1, e = 0;
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === ' ') {
+      if (s >= 0) words.push([s, e]);
+      s = -1;
+    } else {
+      if (s < 0) s = starts[i];
+      e = ends[i];
+    }
+  }
+  if (s >= 0) words.push([s, e]);
+  if (words.length !== WORDS.length) {
+    throw new Error(`timing mismatch: ${words.length} timed words vs ${WORDS.length} tokens`);
+  }
+  // phrase ids: a gap of breath (>0.45s) starts a new phrase — those gaps
+  // are the player's safe bite windows
+  let phrase = 0;
+  const timed = words.map(([ws, we], i) => {
+    if (i > 0 && ws - words[i - 1][1] > 0.45) phrase++;
+    return [Math.round(ws * 1000) / 1000, Math.round(we * 1000) / 1000, phrase];
+  });
+  await writeFile(timingsFile, JSON.stringify({
+    duration: Math.round((ends[ends.length - 1]) * 1000) / 1000,
+    // each entry: [start, end, phraseId]
+    words: timed,
+  }));
+  console.log(`  story.mp3 + timings.json done (${timed.length} words, ${phrase + 1} phrases)`);
 }
 
 // ---- manifest the game loads at runtime

@@ -189,6 +189,44 @@ check('re-stuck food re-enters bullet time', game.bulletTime === true);
 game.pointerUp();
 check('lifting the finger cancels bullet time', game.bulletTime === false);
 
+// --- performance mode: timed narration drives the words as notes
+{
+  const fakeTimings = {
+    duration: story.WORDS.length * 0.4 + 0.3,
+    words: story.WORDS.map((w, i) => ({ s: i * 0.4, e: i * 0.4 + 0.3, p: (i / 8) | 0 })),
+  };
+  const perfCalls = [];
+  const perfTarget = {
+    narrationTimings: () => fakeTimings,
+    narrationReady: () => true,
+  };
+  const perfAudio = new Proxy(perfTarget, {
+    get: (t, k) => t[k] || ((...a) => perfCalls.push(String(k))),
+  });
+  const game2 = new Game({ scene, mouth, ui: stub, audio: perfAudio });
+  game2.start();
+  check('performance mode engages with timings', game2.mode === 'performance');
+  game2.biteTimer = Infinity; // no food — keep the run deterministic
+  for (const f of game2.foods) game2.scene.remove(f.mesh);
+  game2.foods.length = 0;
+
+  for (let f = 0; f < 6500 && game2.state === 'playing'; f++) {
+    // co-prime cycle vs the 0.4s word grid, so bites drift across the beat
+    game2.pressed = (f % 97) > 70;
+    game2.update(1 / 60);
+    if (game2.foods.length) { // food snuck in: remove, keep it word-only
+      for (const fd of game2.foods) game2.scene.remove(fd.mesh);
+      game2.foods.length = 0;
+    }
+  }
+  check('performance run reached the end', game2.state === 'won');
+  check('every word was performed', game2.wordIndex === story.WORDS.length);
+  check('most words escaped', game2.wordIndex - game2.missedWords > story.WORDS.length * 0.5);
+  check('bites muffled some words', game2.missedWords > 0);
+  check('narration was started', perfCalls.includes('startNarration'));
+  console.log(`      (${game2.wordIndex - game2.missedWords}/${story.WORDS.length} escaped, ${game2.missedWords} muffled, score ${game2.score})`);
+}
+
 // --- voice assets, if rendered: the manifest must match the story exactly
 try {
   const { readFile } = await import('fs/promises');

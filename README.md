@@ -22,9 +22,15 @@ npm run serve     # python3 -m http.server 8000
 
 **One control:** hold anywhere to bite down, release to speak.
 
-- **Words** drift up from your larynx — they must escape while the mouth is
-  open. Each one advances a 181-word travel story through Split, Hvar,
-  Dubrovnik, and the last days.
+- **The story is performed live.** The narrator tells the tale at true spoken
+  cadence (~150 wpm); every word is a note at its real timestamp in the
+  recording. Mouth open on the beat — the word escapes. Closed — it smothers
+  audibly into your bite and the streak dies. Natural speech breathes in
+  phrases, and the **gaps between phrases are your safe windows to chew**.
+- **The exit lane** (left edge) is the note highway: gold word-notes ride
+  toward a lip-shaped gate, beamed together by phrase; mint brackets mark the
+  bite windows; food rides the parallel rail with warning rings before it
+  lunges. Bullet time slows the narrator's actual voice, pitch and all.
 - **Food** (olives, Pag cheese, figs, bread, cherry tomatoes) gets jostled
   toward the light every time you talk. Bite down to stop it. Chew it enough
   times and you can swallow it for points.
@@ -64,14 +70,15 @@ from math and Canvas2D at load time, on top of [three.js](https://threejs.org)
 - `js/audio.js` — synthesized WebAudio: wet chomps, crunches, gulps, muffled
   "mmph"s, distant plate clatter, church bells, waves heard through the
   aperture (low-passed by the jaw), and a heartbeat.
-- `js/voice.js` + `assets/voice/` — **real narration**. Every word of the
-  story is a pre-rendered ElevenLabs clip (a warm, worldly storyteller in her
-  sixties), conditioned on the surrounding text so consecutive escapes flow
-  like one telling; words stretch when time dilates, and the full story plays
-  over the win screen. Falls back to synthesized formant vowels if the clips
-  haven't loaded. Re-render with
+- `js/voice.js` + `assets/voice/` — **real narration**. The whole story is
+  one continuous ElevenLabs recording (a warm, worldly storyteller in her
+  sixties) with **per-word timestamps** (`timings.json`, from the
+  with-timestamps API) driving performance mode; phrase boundaries are
+  derived from breath gaps. Individual word clips remain as the classic-mode
+  fallback when timings haven't loaded. Re-render with
   `ELEVENLABS_API_KEY=… npm run voice` — the key lives only in your
-  environment, never in the repo.
+  environment, never in the repo. New stories: add a text in `js/story.js`,
+  re-run the renderer.
 - Lighting: real-time sun shadows through the lip aperture, PMREM environment
   reflections on every wet surface, pulsing transilluminated cheeks, adaptive
   exposure as the jaw opens and closes, ACES tone mapping + bloom.
