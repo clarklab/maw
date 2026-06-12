@@ -150,6 +150,32 @@ for (let f = 0; f < 600; f++) {
 check('suffocation forces the mouth open', forced);
 game.pressed = false;
 
+// --- the sliding chew zone
+game.start();
+game.nextStuckAt = Infinity;
+game._spawnFood();
+game.foods[0].mesh.position.set(0, 0, 3);
+game.update(1 / 60); // sweeps the zone and publishes it to the lane
+check('chew zone rides the lane', game.laneItems.some((it) => it.type === 'zone'));
+game.zoneHalf = 0.5; // a barn-door zone — the next bite must land clean
+const zoneScore = game.score;
+game._chomp();
+check('clean bite scores the bonus', game.score >= zoneScore + 15); // 5 chomp + 10 clean
+check('clean bite chews double', game.foods.length === 0 || game.foods[0].chews !== 1);
+
+// a stuck morsel left to fester shrinks the zone
+game.start();
+game.nextStuckAt = 1;
+game._spawnFood();
+game.foods[0].mesh.position.set(0, 0, 3);
+game._chomp();
+check('morsel stuck for the fester test', !!game.stuck);
+const halfBefore = game.zoneHalf;
+// (generous loop — crisis slow-mo legitimately stretches the 3s window)
+for (let f = 0; f < 60 * 9 && game.stuck; f++) game.update(1 / 60);
+check('unpicked morsel festers away within ~3s', !game.stuck);
+check('festering shrinks the chew zone', game.zoneHalf < halfBefore);
+
 // --- food stuck in teeth + bullet time
 game.start();
 game.nextStuckAt = 1; // force the very next chomped piece to stick
@@ -174,8 +200,10 @@ game.update(1 / 60);
 check('highlighted morsel glows', game.stuck.mesh.material.emissiveIntensity > 0);
 
 const scoreBefore = game.score;
+const halfBeforePick = game.zoneHalf;
 game.clearStuck();
 check('cleared morsel scores and unsticks', !game.stuck && game.score > scoreBefore);
+check('picking clean grows the chew zone', game.zoneHalf > halfBeforePick);
 check('bullet time releases after cleaning', game.bulletTime === false);
 game.pressed = false;
 for (let f = 0; f < 60; f++) game.update(1 / 60);
