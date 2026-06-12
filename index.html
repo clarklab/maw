@@ -69,15 +69,21 @@
   <!-- Title screen -->
   <div id="title-screen">
     <div class="title-inner">
+      <p class="kicker">A&nbsp;DINNER&nbsp;STORY</p>
       <h1>MAW</h1>
       <p class="subtitle">talking with your mouth full</p>
-      <div class="controls">
-        <div class="ctl"><span class="key">TAP</span><span class="ctl-label">bite</span></div>
-        <div class="ctl"><span class="key">HOLD</span><span class="ctl-label">pick teeth</span></div>
-        <div class="ctl"><span class="key">LISTEN</span><span class="ctl-label">to the stories of your elders</span></div>
-      </div>
+      <p class="triad">tap&nbsp;&middot;&nbsp;hold&nbsp;&middot;&nbsp;listen</p>
       <button id="start-btn">OPEN&nbsp;WIDE</button>
       <p class="fineprint">headphones recommended</p>
+    </div>
+  </div>
+
+  <!-- Story-voiced explainer, three taps deep -->
+  <div id="explainer" class="hidden">
+    <div class="exp-inner">
+      <p id="exp-text"></p>
+      <canvas id="exp-lane" class="hidden"></canvas>
+      <p class="exp-tap">tap to continue</p>
     </div>
   </div>
 

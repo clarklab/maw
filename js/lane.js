@@ -12,9 +12,11 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const PERSPECTIVE = 0.62; // foreshortening exponent (smaller = deeper)
 
 export class Lane {
-  constructor(canvas) {
+  // compact = small fixed-size board (the explainer's live diagram)
+  constructor(canvas, compact = false) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.compact = compact;
     this.items = [];
     this.flashes = [];   // strike feedback: { kind: 'hit'|'miss', age }
     this.alpha = 0;
@@ -25,18 +27,27 @@ export class Lane {
 
   resize() {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.w = 190;
-    this.h = window.innerHeight;
+    if (this.compact) {
+      this.w = 210;
+      this.h = 290;
+      this.yNear = this.h * 0.88;
+      this.yFar = this.h * 0.07;
+      this.xNear = this.xFar = 92;
+      this.wNear = 118;
+      this.wFar = 34;
+    } else {
+      this.w = 190;
+      this.h = window.innerHeight;
+      // board geometry: near edge (strike line) wide at the bottom,
+      // far edge narrow up top — a symmetric trapezoid, dead-on perspective
+      this.yNear = this.h * 0.72;
+      this.yFar = this.h * 0.27;
+      this.xNear = this.xFar = 78;
+      this.wNear = 124;
+      this.wFar = 34;
+    }
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
-    // board geometry: near edge (strike line) wide at the bottom,
-    // far edge narrow up top — a symmetric trapezoid, dead-on perspective
-    this.yNear = this.h * 0.72;
-    this.yFar = this.h * 0.27;
-    this.xNear = 78;
-    this.xFar = 78;
-    this.wNear = 124;
-    this.wFar = 34;
   }
 
   // Perspective sample along the board. t: 0 = far (just spawned),
