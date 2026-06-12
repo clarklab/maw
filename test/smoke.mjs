@@ -227,6 +227,59 @@ check('lifting the finger cancels bullet time', game.bulletTime === false);
   console.log(`      (${game2.wordIndex - game2.missedWords}/${story.WORDS.length} escaped, ${game2.missedWords} muffled, score ${game2.score})`);
 }
 
+// --- DEFEND YOURSELF: the coughing-fit bonus round
+{
+  const { DefendRound } = await import('../js/defend.js');
+  const dscene = new THREE.Scene();
+  const dmouth = buildMouth(dscene);
+  const dcalls = [];
+  const dstub = new Proxy({}, { get: (_, k) => (...a) => dcalls.push(String(k)) });
+  const dcamera = new THREE.PerspectiveCamera(78, 0.6, 0.05, 900);
+
+  const dgame = new Game({ scene: dscene, mouth: dmouth, ui: dstub, audio: dstub });
+  const defend = new DefendRound({
+    scene: dscene, mouth: dmouth, ui: dstub, audio: dstub, lasso: dstub, camera: dcamera,
+  });
+  dgame.attachDefend(defend);
+  geometryFinite(defend.face, 'outside face');
+
+  dgame.start();
+  dgame.defendAt = 0; // cough fit immediately
+  dgame.update(1 / 60);
+  check('defend round begins with the fit', defend.phase === 'enter');
+  check('outside face appears', defend.face.visible === true);
+
+  const wordsBefore = dgame.wordIndex;
+  let sawActive = false;
+  let frames = 0;
+  for (let f = 0; f < 60 * 20 && defend.phase !== 'idle'; f++) {
+    const params = dgame.update(1 / 60);
+    dmouth.update(1 / 60, params);
+    defend.cameraPose(dcamera);
+    if (defend.active) sawActive = true;
+    if (f === 130) defend.dodge(1); // lean once, mid-volley
+    frames++;
+  }
+  check('defend ran its active phase', sawActive);
+  check('launched 7-12 pieces', defend.total >= 7 && defend.total <= 12
+    && defend.launched === defend.total);
+  check('every piece resolved (blocked / dodged / splat)',
+    defend.stats.blocked + defend.stats.dodged + defend.stats.splats === defend.total);
+  check('round lasted roughly ten seconds', frames / 60 > 6 && frames / 60 < 14);
+  check('the story froze during the fit', dgame.wordIndex === wordsBefore);
+  check('coughing and smacking played', dcalls.includes('cough') && dcalls.includes('smack'));
+  check('face hidden again after the fit', defend.face.visible === false);
+  check('guest camera stayed finite', Number.isFinite(
+    dcamera.position.x + dcamera.position.y + dcamera.position.z));
+  geometryFinite(defend.face, 'outside face after the fit');
+  console.log(`      (${defend.total} pieces: ${defend.stats.blocked} blocked, `
+    + `${defend.stats.dodged} dodged, ${defend.stats.splats} splats, ${(frames / 60).toFixed(1)}s)`);
+
+  // a fresh start resets the round
+  dgame.start();
+  check('retry resets the defend round', defend.phase === 'idle' && defend.foods.length === 0);
+}
+
 // --- voice assets, if rendered: the manifest must match the story exactly
 try {
   const { readFile } = await import('fs/promises');

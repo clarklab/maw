@@ -18,6 +18,7 @@ import { AudioEngine } from './audio.js';
 import { VoiceEngine } from './voice.js';
 import { Lasso } from './lasso.js';
 import { Lane } from './lane.js';
+import { DefendRound } from './defend.js';
 
 // ------------------------------------------------------------------- setup
 
@@ -175,6 +176,8 @@ const world = buildWorld(scene, sunDir);
 const game = new Game({ scene, mouth, ui, audio });
 const lasso = new Lasso(document.getElementById('lasso'));
 const lane = new Lane(document.getElementById('lane'));
+const defend = new DefendRound({ scene, mouth, ui, audio, lasso, camera });
+game.attachDefend(defend);
 
 // ------------------------------------------------------------------ postfx
 
@@ -199,6 +202,11 @@ window.addEventListener('pointerdown', (e) => {
   if (game.state !== 'playing') return;
   e.preventDefault();
   audio.resume();
+  if (defend.phase !== 'idle') {
+    // the coughing fit: fingers circle to block and swipe to dodge
+    defend.pointerDown(e.pointerId, e.clientX, e.clientY);
+    return;
+  }
   if (game.bulletTime && lassoId === null && e.pointerId !== primaryId) {
     lassoId = e.pointerId;
     lasso.start(e.clientX, e.clientY);
@@ -211,6 +219,10 @@ window.addEventListener('pointerdown', (e) => {
 }, { passive: false });
 
 window.addEventListener('pointermove', (e) => {
+  if (defend.phase !== 'idle') {
+    defend.pointerMove(e.pointerId, e.clientX, e.clientY);
+    return;
+  }
   if (e.pointerId === lassoId) lasso.add(e.clientX, e.clientY);
 });
 
@@ -230,6 +242,7 @@ function finishLasso(pts) {
 }
 
 function liftPointer(e, cancelled) {
+  if (defend.pointerUp(e.pointerId)) return;
   if (e.pointerId === lassoId) {
     lassoId = null;
     if (cancelled) lasso.cancel();
@@ -247,6 +260,9 @@ window.addEventListener('pointercancel', (e) => liftPointer(e, true));
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    defend.dodge(e.code === 'ArrowLeft' ? -1 : 1); // desktop lean
+  }
   if (e.code === 'Space' && !e.repeat) {
     spaceHeld = true;
     game.pointerDown();
@@ -402,19 +418,25 @@ function frame() {
   // audio hears the world through the aperture
   if (audio.enabled) audio.setMouthOpen(open01);
 
-  // camera: breathing sway + chomp shake, hanging back by the uvula
-  const sway = 0.03;
-  camera.position.set(
-    camBase.x + Math.sin(elapsed * 0.9) * sway + (Math.random() - 0.5) * 0.05 * game.shake,
-    camBase.y + Math.sin(elapsed * 1.3) * sway * 0.7 + (Math.random() - 0.5) * 0.06 * game.shake,
-    camBase.z + (Math.random() - 0.5) * 0.03 * game.shake
-  );
-  camLook.set(
-    Math.sin(elapsed * 0.4) * 0.15,
-    -0.2 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.18,
-    6.0
-  );
-  camera.lookAt(camLook);
+  // camera: breathing sway + chomp shake, hanging back by the uvula —
+  // unless the coughing fit has blasted us out front to defend ourselves
+  if (defend.phase !== 'idle') {
+    defend.cameraPose(camera);
+  } else {
+    camera.up.set(0, 1, 0);
+    const sway = 0.03;
+    camera.position.set(
+      camBase.x + Math.sin(elapsed * 0.9) * sway + (Math.random() - 0.5) * 0.05 * game.shake,
+      camBase.y + Math.sin(elapsed * 1.3) * sway * 0.7 + (Math.random() - 0.5) * 0.06 * game.shake,
+      camBase.z + (Math.random() - 0.5) * 0.03 * game.shake
+    );
+    camLook.set(
+      Math.sin(elapsed * 0.4) * 0.15,
+      -0.2 + Math.sin(elapsed * 0.6) * 0.08 - open01 * 0.18,
+      6.0
+    );
+    camera.lookAt(camLook);
+  }
 
   composer.render();
 
@@ -429,7 +451,8 @@ function frame() {
   // the exit highway is persistent during play, dimmed in bullet time
   for (const kind of game.laneEvents) lane.flash(kind);
   game.laneEvents.length = 0;
-  lane.set(game.laneItems, game.state === 'playing' ? (game.bulletTime ? 0.35 : 1) : 0);
+  lane.set(game.laneItems,
+    game.state === 'playing' && defend.phase === 'idle' ? (game.bulletTime ? 0.35 : 1) : 0);
   lane.update(rawDt);
   lane.render();
 
@@ -443,7 +466,7 @@ function frame() {
 }
 
 // debug / test handle
-window.MAW = { game, mouth, lasso, lane, camera, audio, voice };
+window.MAW = { game, mouth, lasso, lane, camera, audio, voice, defend };
 
 ui.ready();
 frame();

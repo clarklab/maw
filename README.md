@@ -37,6 +37,15 @@ npm run serve     # python3 -m http.server 8000
 - Mistime it: a word hits closed lips — *MMMPH* — and your streak dies.
 - Let three pieces of food past your lips and your reputation is finished.
 - Hold the mouth shut too long and you'll need to breathe.
+- **DEFEND YOURSELF.** Somewhere past the first third of the telling, the
+  mouth slips into a coughing fit and the camera is blown out through the
+  lips: for ten seconds you are the dinner guest across the table — staring
+  at the lips, teeth, nose-tip and chin from outside — while 7–12
+  half-chewed morsels come flying at your face. **Circle** one mid-air to
+  swat it down (+20), **swipe** left or right to lean out of its path
+  (arrow keys on desktop, +10 per near miss). Take nothing on the chin and
+  the table pretends not to have noticed (+100). The story holds its
+  breath; the coughing and lip-smacking, regrettably, do not.
 - Every handful of chomps, a morsel gets **stuck in your teeth** (no streak
   builds while it's there). Hold one finger to slip into slow-mo **bullet
   time**, then circle the morsel with a *second* finger — your glowing
@@ -62,14 +71,21 @@ from math and Canvas2D at load time, on top of [three.js](https://threejs.org)
 - `js/game.js` — jaw spring physics, chomp detection, food physics against
   the tongue/cheeks/lips, the word flight path, scoring, slow-motion crises,
   the suffocation mechanic, and the stuck-food / bullet-time state machine.
+- `js/defend.js` — the DEFEND YOURSELF bonus round: the cough-flight camera
+  path out through the aperture, a procedurally skinned outside-of-the-face
+  plate (philtrum, nose tip, alar flares, chin boss — its lower half rides
+  the mandible so the fit reads from the guest's seat too), the volley of
+  cough-launched food aimed at your head, and the swipe-vs-circle gesture
+  split (accumulated heading turn tells a dodge flick from a blocking loop).
 - `js/lasso.js` — the bullet-time cleaning lasso: a Canvas2D layer over the
   WebGL scene with a glowing pencil trail under the finger, a point-in-polygon
   hit test against the morsel's projected position, and a morph that snaps the
   hand-drawn loop onto the convex hull of the morsel's screen-space silhouette
   before it poofs.
 - `js/audio.js` — synthesized WebAudio: wet chomps, crunches, gulps, muffled
-  "mmph"s, distant plate clatter, church bells, waves heard through the
-  aperture (low-passed by the jaw), and a heartbeat.
+  "mmph"s, chesty coughs, lip smacks, face-splats, distant plate clatter,
+  church bells, waves heard through the aperture (low-passed by the jaw),
+  and a heartbeat.
 - `js/voice.js` + `assets/voice/` — **real narration**. The whole story is
   one continuous ElevenLabs recording (a warm, worldly storyteller in her
   sixties) with **per-word timestamps** (`timings.json`, from the

@@ -41,7 +41,7 @@ function wordTexture(text) {
 
 // ------------------------------------------------------------- food meshes
 
-function foodGeometry(spec, rng) {
+export function foodGeometry(spec, rng) {
   let g;
   if (spec.cube) {
     g = new THREE.BoxGeometry(1.5, 1.5, 1.5, 5, 5, 5);
@@ -74,7 +74,7 @@ function foodGeometry(spec, rng) {
   return g;
 }
 
-function foodMaterial(spec) {
+export function foodMaterial(spec) {
   return new THREE.MeshPhysicalMaterial({
     color: spec.baseColor,
     roughness: spec.rough,
@@ -143,6 +143,11 @@ export class Game {
     this.missedWords = 0;
     this._lastMuffleAt = -10;
 
+    // the DEFEND YOURSELF coughing fit (attached by main, once per game)
+    this.defend = null;
+    this.defendDone = false;
+    this.defendAt = Infinity;
+
     // food stuck in the teeth + bullet time
     this.chompedCount = 0;
     this.nextStuckAt = 5 + ((Math.random() * 6) | 0); // every 5–10 pieces
@@ -162,6 +167,12 @@ export class Game {
   get difficulty() { return clamp(this.wordIndex / WORDS.length, 0, 1); }
 
   // -------------------------------------------------------------- controls
+
+  // Wire up the bonus round (kept separate so the module stays optional).
+  attachDefend(defend) {
+    this.defend = defend;
+    defend.game = this;
+  }
 
   pointerDown() { this.pressed = true; }
 
@@ -188,6 +199,10 @@ export class Game {
     this.holdTime = 0;
     this.chompedCount = 0;
     this.nextStuckAt = 5 + ((Math.random() * 6) | 0);
+    if (this.defend) this.defend.reset();
+    this.defendDone = false;
+    // the coughing fit strikes somewhere past the first third of the story
+    this.defendAt = Math.floor(WORDS.length * (0.35 + Math.random() * 0.2));
     this.ui.bulletTime(false);
     this.ui.stuckTip(null);
     this.audio.stopStory();
@@ -757,8 +772,17 @@ export class Game {
   // ---------------------------------------------------------------- update
 
   update(dt) {
+    // the coughing fit strikes: hand the table over to the bonus round
+    if (this.defend && !this.defendDone && this.state === 'playing'
+      && !this.bulletTime && this.endTimer < 0 && this.wordIndex >= this.defendAt) {
+      this.defendDone = true;
+      this.defend.begin();
+    }
+    const defending = !!(this.defend && this.defend.phase !== 'idle');
+    if (defending) this.defend.update(dt);
+
     // long press while something's stuck → slip into bullet time
-    if (this.pressed && this.stuck && !this.bulletTime && this.state === 'playing') {
+    if (this.pressed && this.stuck && !this.bulletTime && !defending && this.state === 'playing') {
       this.holdTime += dt;
       if (this.holdTime > STUCK_HOLD) this._enterBulletTime();
     } else if (!this.pressed) {
@@ -769,7 +793,10 @@ export class Game {
     // jaw spring — target depends on input + breath
     const openBase = MOUTH.maxJawAngle * 0.6;
     let target;
-    if (this.bulletTime) {
+    if (defending) {
+      // the fit owns the jaw: cough spasms and lip smacks
+      target = this.defend.jawTarget;
+    } else if (this.bulletTime) {
       // teeth bared for inspection; the held finger isn't a bite right now
       target = MOUTH.maxJawAngle * 0.62;
     } else if (this.forcedOpen > 0) {
@@ -797,7 +824,7 @@ export class Game {
 
     // breath management
     const open01 = this.jawAngle / MOUTH.maxJawAngle;
-    if (open01 < 0.18 && this.state === 'playing') {
+    if (open01 < 0.18 && this.state === 'playing' && !defending) {
       this.closedTime += dt;
       if (this.closedTime > 3.6) {
         this.forcedOpen = 1.3;
@@ -816,10 +843,13 @@ export class Game {
 
     // the world runs on dilated time; the jaw and inputs stay realtime
     const gdt = dt * this.timeScale;
-    if (this.state === 'playing') {
+    if (this.state === 'playing' && !defending) {
       if (this.mode === 'performance') this._updatePerformance(gdt);
       else this._updateWord(gdt);
       this._updateFood(gdt);
+    } else if (defending && this.narrationStarted) {
+      // the story stops — hold the narrator mid-breath through the fit
+      this.audio.setNarrationRate(0.001);
     }
     this._updateParticles(gdt);
     this.ui.fadeHintMaybe();
@@ -843,7 +873,7 @@ export class Game {
     let wordCue = 0, foodCue = 0;
     let nextWordIn = Infinity;
     this.laneItems.length = 0;
-    if (this.state === 'playing') {
+    if (this.state === 'playing' && !defending) {
       if (this.mode === 'performance') {
         // the note highway: upcoming words for the next few seconds,
         // beamed by phrase, with the breath gaps marked as bite windows
@@ -907,7 +937,7 @@ export class Game {
         if (f.mesh.position.z > 4.2) { crisis = true; break; }
       }
     }
-    const targetScale = this.bulletTime ? BULLET_SCALE : crisis ? 0.55 : 1;
+    const targetScale = this.bulletTime ? BULLET_SCALE : defending ? 1 : crisis ? 0.55 : 1;
     this.timeScale = lerp(this.timeScale, targetScale, dt * (this.bulletTime ? 10 : 6));
 
     // end of game
@@ -934,9 +964,9 @@ export class Game {
     return {
       jawAngle: this.jawAngle,
       open01,
-      talk: this.activeWord && !this.activeWord.muffled ? 1 : 0.18,
+      talk: defending ? 0.55 : this.activeWord && !this.activeWord.muffled ? 1 : 0.18,
       wordCurl: this.activeWord && !this.activeWord.muffled && this.activeWord.t > 0.25 && this.activeWord.t < 0.7 ? 0.7 : 0,
-      chew: this.chewPulse || 0,
+      chew: Math.max(this.chewPulse || 0, defending ? this.defend.smackPulse * 0.8 : 0),
     };
   }
 }
