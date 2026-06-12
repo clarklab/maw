@@ -852,7 +852,7 @@ export class Game {
         for (let k = this.wordIndex; k < tm.length; k++) {
           const eta = tm[k].s - this.storyClock;
           if (eta > H) break;
-          this.laneItems.push({ type: 'word', t: 1 - eta / H, p: tm[k].p });
+          this.laneItems.push({ type: 'word', t: 1 - eta / H, p: tm[k].p, word: WORDS[k] });
           if (eta < nextWordIn) nextWordIn = eta;
           // a phrase break after this word = a safe window to bite
           if (k + 1 < tm.length && tm[k + 1].p !== tm[k].p) {
@@ -871,7 +871,11 @@ export class Game {
         }
       } else if (this.activeWord && !this.activeWord.muffled) {
         wordCue = sstep(0.62, 0.9, this.activeWord.t);
-        this.laneItems.push({ type: 'word', t: clamp(this.activeWord.t, 0, 1) });
+        this.laneItems.push({
+          type: 'word',
+          t: clamp(this.activeWord.t, 0, 1),
+          word: this.activeWord.text,
+        });
       }
       for (const f of this.foods) {
         if (f.state !== 'loose') continue;

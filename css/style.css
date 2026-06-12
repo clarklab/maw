@@ -64,11 +64,11 @@ body {
   pointer-events: none;
 }
 
-/* the exit lane — rhythm track on the left edge */
+/* the exit lane — rhythm note highway on the left edge */
 #lane {
   position: absolute;
   left: 0; top: 0;
-  width: 96px; height: 100%;
+  width: 150px; height: 100%;
   pointer-events: none;
 }
 
