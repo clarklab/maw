@@ -62,16 +62,20 @@ export class VoiceEngine {
         if (r.ok) this.raw.set(key, await r.arrayBuffer());
       } catch { /* offline — the synth voice covers it */ }
     };
-    // early words first: the player hears them within seconds of starting
-    const seen = new Set();
     const queue = [];
+    // The continuous narration IS performance mode — fetch it FIRST, and
+    // decode it the moment it lands (bind() may already have run), so a
+    // normal start hears the real telling instead of the word-by-word
+    // fallback. The word clips trickle in behind it.
+    queue.push(() => fetchOne('story', this.base + this.manifest.story)
+      .then(() => { if (this.ctx) this._buffer('story'); }));
+    const seen = new Set();
     for (let i = 0; i < this.manifest.words.length; i++) {
       const name = this._file(i);
       if (!name || seen.has(name)) continue;
       seen.add(name);
       queue.push(() => fetchOne(name, `${this.base}words/${name}`));
     }
-    queue.push(() => fetchOne('story', this.base + this.manifest.story));
     await Promise.all(Array.from({ length: 6 }, async () => {
       while (queue.length) await queue.shift()();
     }));

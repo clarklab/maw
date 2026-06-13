@@ -140,8 +140,9 @@ export class Game {
     // Bite food while it's inside for a clean bite; picking stuck food
     // grows the band, letting it fester shrinks it.
     this.zonePhase = Math.random() * Math.PI * 2;
-    this.zoneHalf = 0.11;
+    this.zoneHalf = 0.085;
     this.zoneCenter = 0.5;
+    this._lastZoneCueAt = -1;
 
     // performance mode: the narration is the timeline, words are notes
     this.mode = 'classic';
@@ -155,10 +156,12 @@ export class Game {
     this.defendDone = false;
     this.defendAt = Infinity;
 
-    // food stuck in the teeth + bullet time
+    // food sticks in the teeth as a PENALTY: bite outside the chew zone
+    // enough times and the morsel wedges in
     this.chompedCount = 0;
-    this.nextStuckAt = 5 + ((Math.random() * 6) | 0); // every 5–10 pieces
-    this.stuck = null;        // { mesh, spec, highlight }
+    this.misChews = 0;
+    this.stickAfterMisChews = 3;
+    this.stuck = null;        // { mesh, spec, highlight, timer }
     this.bulletTime = false;
     this.holdTime = 0;
 
@@ -205,9 +208,9 @@ export class Game {
     this.bulletTime = false;
     this.holdTime = 0;
     this.chompedCount = 0;
-    this.nextStuckAt = 5 + ((Math.random() * 6) | 0);
+    this.misChews = 0;
     this.zonePhase = Math.random() * Math.PI * 2;
-    this.zoneHalf = 0.11;
+    this.zoneHalf = 0.085;
     if (this.defend) this.defend.reset();
     this.defendDone = false;
     // the coughing fit strikes somewhere past the first third of the story
@@ -247,7 +250,7 @@ export class Game {
     sprite.scale.set(aspect * scale, scale, 1);
     this.scene.add(sprite);
 
-    const duration = lerp(1.7, 1.1, this.difficulty);
+    const duration = lerp(1.25, 0.85, this.difficulty);
     this.activeWord = {
       text, sprite,
       t: 0, duration,
@@ -262,6 +265,19 @@ export class Game {
     if (chapter) {
       this.ui.chapterToast(chapter.name);
       this.audio.chime();
+    }
+  }
+
+  // The narration downloads ahead of the word clips, but a fast start can
+  // still beat it. If it becomes ready before the first word flies, switch
+  // from the word-by-word fallback to the continuous telling.
+  _maybeUpgradeMode() {
+    const tm = this.audio.narrationTimings ? this.audio.narrationTimings() : null;
+    const ready = this.audio.narrationReady ? this.audio.narrationReady() : false;
+    if (ready === true && tm && Array.isArray(tm.words) && tm.words.length === WORDS.length) {
+      this.mode = 'performance';
+      this.storyClock = -1.2;
+      this.narrationStarted = false;
     }
   }
 
@@ -378,7 +394,7 @@ export class Game {
       if (w.sprite.material.opacity <= 0) {
         this.scene.remove(w.sprite);
         this.activeWord = null;
-        this.wordTimer = 0.5; // the word tries again shortly
+        this.wordTimer = 0.35; // the word tries again shortly
       }
       return;
     }
@@ -430,7 +446,7 @@ export class Game {
     });
     this.activeWord = null;
     this.wordIndex++;
-    this.wordTimer = lerp(0.45, 0.22, this.difficulty); // conversational clip
+    this.wordTimer = lerp(0.22, 0.1, this.difficulty); // conversational clip
 
     if (this.wordIndex >= WORDS.length) {
       this.endTimer = 1.6;
@@ -624,6 +640,7 @@ export class Game {
     let bit = false;
     let bitSpec = null;
     let cleanBite = false;
+    let sloppyBite = false;
     for (let i = this.foods.length - 1; i >= 0; i--) {
       const f = this.foods[i];
       const p = f.mesh.position;
@@ -640,12 +657,14 @@ export class Game {
         f.vel.set((Math.random() - 0.5) * 3, 2.5 + Math.random() * 2, -6 - Math.random() * 4);
         f.spin.set(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
         this.score += 5;
-        // CLEAN BITE — caught it inside the sliding chew zone: counts double
         const laneT = clamp((p.z - 0.4) / (MOUTH.lipsZ - 0.4), 0, 1);
         if (Math.abs(laneT - this.zoneCenter) <= this.zoneHalf) {
+          // CLEAN BITE — caught it inside the sliding chew zone: counts double
           cleanBite = true;
           f.chews++;
           this.score += 10;
+        } else {
+          sloppyBite = true;
         }
         if (f.chews >= f.spec.chewsToSwallow) {
           f.state = 'swallowing';
@@ -655,12 +674,21 @@ export class Game {
     }
     if (bit) {
       this.audio.crunch(0.7);
-      if (cleanBite) this.ui.callout('CLEAN BITE · +10');
-      this.ui.setScore(this.score);
-      // every so often, a piece wedges itself between the teeth
-      if (!this.stuck && this.chompedCount >= this.nextStuckAt && this.state === 'playing') {
-        this._stickFood(bitSpec);
+      if (cleanBite) {
+        this.ui.callout('CLEAN BITE · +10');
+        this.misChews = Math.max(0, this.misChews - 1); // a good bite steadies the jaw
+      } else if (sloppyBite && !this.stuck && this.state === 'playing') {
+        // biting outside the zone is exactly how food ends up in your teeth
+        this.misChews++;
+        this.audio.bump();
+        if (this.misChews >= this.stickAfterMisChews) {
+          this.misChews = 0;
+          this._stickFood(bitSpec);
+        } else {
+          this.ui.callout(`SLOPPY BITE ${this.misChews}/${this.stickAfterMisChews}`, true);
+        }
       }
+      this.ui.setScore(this.score);
     }
     // saliva spray regardless
     this._burst(new THREE.Vector3(0, 0.1, 3.4), 0xd9a0a0, 6, this._salivaMat);
@@ -698,10 +726,9 @@ export class Game {
     this.scene.remove(s.mesh);
     s.mesh.material.dispose();
     this.audio.gulp();
-    this.zoneHalf = Math.max(0.055, this.zoneHalf - 0.035);
+    this.zoneHalf = Math.max(0.05, this.zoneHalf - 0.035);
     this.ui.callout('FESTERED · CHEW ZONE SHRINKS', true);
     this.ui.stuckTip(null);
-    this.nextStuckAt = this.chompedCount + 5 + ((Math.random() * 6) | 0);
     this._exitBulletTime();
   }
 
@@ -737,10 +764,9 @@ export class Game {
     s.mesh.material.dispose();
     this.audio.poof();
     this.score += 50;
-    this.zoneHalf = Math.min(0.2, this.zoneHalf + 0.045);
+    this.zoneHalf = Math.min(0.16, this.zoneHalf + 0.04);
     this.ui.setScore(this.score);
     this.ui.callout('PICKED CLEAN · +50 · CHEW ZONE GROWS');
-    this.nextStuckAt = this.chompedCount + 5 + ((Math.random() * 6) | 0);
     this._exitBulletTime();
   }
 
@@ -880,6 +906,11 @@ export class Game {
     // the world runs on dilated time; the jaw and inputs stay realtime
     const gdt = dt * this.timeScale;
     if (this.state === 'playing' && !defending) {
+      // the big narration file may land moments after start — upgrade to
+      // the real telling as long as no word has flown yet
+      if (this.mode === 'classic' && this.wordIndex === 0 && !this.activeWord) {
+        this._maybeUpgradeMode();
+      }
       if (this.mode === 'performance') this._updatePerformance(gdt);
       else this._updateWord(gdt);
       this._updateFood(gdt);
@@ -921,11 +952,13 @@ export class Game {
       this.zonePhase += gdt * 1.05;
       const amp = Math.max(0.5 - this.zoneHalf - 0.05, 0);
       this.zoneCenter = 0.5 + amp * Math.sin(this.zonePhase);
-      this.laneItems.push({
+      const zoneItem = {
         type: 'zone',
         t0: this.zoneCenter - this.zoneHalf,
         t1: this.zoneCenter + this.zoneHalf,
-      });
+        hot: false, // lights up while a morsel is inside — bite NOW
+      };
+      this.laneItems.push(zoneItem);
       if (this.mode === 'performance') {
         // the note highway: upcoming words for the next few seconds,
         // beamed by phrase, with the breath gaps marked as bite windows
@@ -957,12 +990,18 @@ export class Game {
           danger = Math.max(danger, 0.45 * warn);
         }
         foodCue = Math.max(foodCue, danger);
-        this.laneItems.push({
-          type: 'food',
-          t: clamp((f.mesh.position.z - 0.4) / (MOUTH.lipsZ - 0.4), 0, 1),
-          color: f.laneColor,
-          warn,
-        });
+        const laneT = clamp((f.mesh.position.z - 0.4) / (MOUTH.lipsZ - 0.4), 0, 1);
+        const inZone = Math.abs(laneT - this.zoneCenter) <= this.zoneHalf;
+        if (inZone) {
+          zoneItem.hot = true;
+          // a soft tick the moment the zone slides over a morsel
+          if (!f.wasInZone && performance.now() - this._lastZoneCueAt > 450) {
+            this.audio.zoneCue();
+            this._lastZoneCueAt = performance.now();
+          }
+        }
+        f.wasInZone = inZone;
+        this.laneItems.push({ type: 'food', t: laneT, color: f.laneColor, warn, inZone });
       }
     }
     this.ui.cues(wordCue, foodCue);

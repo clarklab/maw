@@ -32,9 +32,13 @@ npm run serve     # python3 -m http.server 8000
   parallel rail with warning rings before it lunges. Bullet time slows the
   narrator's actual voice, pitch and all.
 - **The CHEW zone** — a green band that sweeps up and down the lane like a
-  kicking meter. Land your bite while the food is inside it for a **CLEAN
-  BITE**: +10 and the chomp counts double toward swallowing. Picking stuck
-  food out of your teeth grows the zone; letting it fester shrinks it.
+  kicking meter; it flares (with a soft tick) whenever it slides over a
+  morsel. Land your bite while the food is inside it for a **CLEAN BITE**:
+  +10 and the chomp counts double toward swallowing. Bite **outside** the
+  zone and that's a **sloppy bite** — a dull bump-bump — and the third one
+  wedges the morsel in your teeth. A clean bite steadies the jaw and
+  forgives one. Picking stuck food out grows the zone; letting it fester
+  shrinks it.
 - **Food** (olives, Pag cheese, figs, bread, cherry tomatoes) gets jostled
   toward the light every time you talk. Bite down to stop it. Chew it enough
   times and you can swallow it for points.
@@ -50,7 +54,7 @@ npm run serve     # python3 -m http.server 8000
   (arrow keys on desktop, +10 per near miss). Take nothing on the chin and
   the table pretends not to have noticed (+100). The story holds its
   breath; the coughing and lip-smacking, regrettably, do not.
-- Every handful of chomps, a morsel gets **stuck in your teeth** (no streak
+- Three sloppy bites and a morsel gets **stuck in your teeth** (no streak
   builds while it's there) — and you have **3 seconds** before it festers.
   Hold one finger to slip into slow-mo **bullet time** (which all but
   freezes the countdown), then circle the morsel with a *second* finger —

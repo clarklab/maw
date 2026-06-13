@@ -462,6 +462,64 @@ export class AudioEngine {
     o.start(t); o.stop(t + 0.2);
   }
 
+  // A sloppy bite — food chomped outside the chew zone: a dull, wooden
+  // bump-bump, like a knuckle on the table. You'll hear it twice before
+  // the third one wedges in your teeth.
+  bump() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    for (const off of [0, 0.13]) {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(130, t + off);
+      o.frequency.exponentialRampToValueAtTime(58, t + off + 0.09);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.38, t + off);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.12);
+      o.connect(g); g.connect(this.master);
+      o.start(t + off); o.stop(t + off + 0.14);
+
+      const n = this._noiseSource();
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 420;
+      f.Q.value = 2;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(0.12, t + off);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.07);
+      n.connect(f); f.connect(ng); ng.connect(this.master);
+      n.start(t + off); n.stop(t + off + 0.09);
+    }
+  }
+
+  // The chew zone slides over a morsel: a soft woodblock tick — bite NOW.
+  zoneCue() {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(880, t);
+    o.frequency.exponentialRampToValueAtTime(620, t + 0.05);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.09);
+
+    const n = this._noiseSource();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 2400;
+    f.Q.value = 3;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.06, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    n.connect(f); f.connect(ng); ng.connect(this.master);
+    n.start(t); n.stop(t + 0.05);
+  }
+
   // A morsel wedges itself between two teeth: dull thock + sticky squelch.
   stuck() {
     if (!this.enabled) return;
